@@ -216,6 +216,50 @@ const TRIG_OLD={plan:'自己的结构分析，计划已写好',noplan:'没有提
 const trigText=k=>(TRIG.find(x=>x[0]===k)||[0,TRIG_OLD[k]||k])[1];
 const IFLOSE=[['letStop','什么都不做，让止损执行'],['add','加仓摊成本'],['later','到时候再看']];
 const BEPOL=[['after1R','赚到计划亏损的 1 倍才挪'],['immediate','一浮盈就挪']];
+/* KK2020 清单：结构依据的点选项（说明见仓库 5_学习资料/KK2020/3_下单前清单.md） */
+const KK={dir:[['UP','涨'],['DOWN','跌'],['RANGE','震荡']],
+  tf:[['1d','日线'],['12h','12 小时'],['4h','4 小时'],['low','1 小时以下']],
+  pat:[['range','水平区间'],['rtri','直角三角'],['stri','对称三角'],['flag','旗形'],['mw','M 顶 / W 底'],['hs','头肩'],['hard','其他难的形态'],['none','看不出']],
+  touch:[['2','2 次'],['3','3 次'],['4','4 次'],['5','5 次以上']],
+  fail:[['0','没失败过'],['1','失败过 1 次'],['2','2 次以上']],
+  conf:[['4h','4 小时收在线外'],['12h','12 小时收在线外'],['1d','日线收在线外'],['intra','穿过了，还没收线'],['no','还没突破']],
+  vol:[['up','放量'],['flat','量一般'],['low','量特别小']],
+  stopAt:[['candle','突破那根 K 线另一端外面一点'],['other','别的地方']],
+  tgtBy:[['measure','形态高度再量一次'],['pole','旗杆长度（旗形）'],['other','别的方法']]};
+const KKQ={pts:'每个点都说得出是什么点（起涨点、起跌点、反弹最高点、止跌点），没有吉利数字',flat:'线不陡，中间没有暴涨暴跌',
+  norev:'形态方向正常，不是走反的（比如熊市里熊旗向上突破就是走反）',wickOk:'突破那根 K 线的影线没有比实体长',noNews:'不是因为消息、美股开盘，也不是暴涨暴跌后的 V 反'};
+const KKNAME={dir:'日线方向',tf:'形态画在哪个级别',pat:'哪种形态',touch:'碰了几次',pts:'点是不是有意义',flat:'线陡不陡',fail:'以前失败过没有',norev:'是不是走反的形态',conf:'突破怎么确认',wickOk:'影线',vol:'成交量',noNews:'是不是消息或 V 反',stopAt:'止损放在哪',tgtBy:'目标怎么定'};
+const kkL=(a,v)=>(KK[a].find(x=>x[0]===v)||['',''])[1];
+function kkEval(k,side,rr){k=k||{};const b=[],w=[];
+  const miss=Object.keys(KKNAME).filter(x=>k[x]==null||k[x]==='');
+  if(miss.length)b.push('结构依据（KK 清单）没选完：'+miss.map(x=>KKNAME[x]).join('、'));
+  if((k.dir==='UP'&&side==='SHORT')||(k.dir==='DOWN'&&side==='LONG'))b.push('和日线方向相反：不做');
+  if(k.dir==='RANGE')w.push('日线震荡：只做区间边界的突破');
+  if(k.tf==='low')b.push('只有 1 小时以下才看得到：不做');
+  if(k.tf==='4h')b.push('形态要画在日线或 12 小时上，4 小时只用来找价格、确认突破');
+  if(k.pat==='hard')b.push('难的形态（扩散三角、菱形等）不做');
+  if(k.pat==='none')b.push('看不出形态：没有机会');
+  if((k.pat==='mw'||k.pat==='hs')&&k.tf&&k.tf!=='1d')b.push('M 顶 W 底、头肩只看日线');
+  const n=+k.touch||0,need=k.pat==='mw'?2:k.tf==='12h'?4:3;
+  if(k.touch&&n<need)b.push(`碰了 ${n} 次，不够（${k.pat==='mw'?'M 顶 W 底至少 2 次':k.tf==='12h'?'12 小时的线至少 4 次':'日线的线至少 3 次'}）`);
+  if(k.pts===false)b.push('点不是有意义的点，或用了吉利数字：这是硬连的线');
+  if(k.flat===false)b.push('线太陡，或中间有过暴涨暴跌：不做');
+  if(k.fail==='2')b.push('这条线已经失败两次：放弃');
+  else if(k.fail==='1'){if(n>=4)w.push('最后一次机会：这次再失败，这条线就删掉');else if(k.touch)b.push('只碰过 3 次的线失败过一次：删掉，不再看')}
+  if(k.norev===false)b.push('形态走反了：不做');
+  if(k.conf==='intra')b.push('还没收线：等 4 小时或 12 小时收在线外');
+  if(k.conf==='no')b.push('还没突破：不提前进');
+  if(k.wickOk===false)b.push('突破那根影线比实体还长：更可能是假突破，不做');
+  if(k.vol==='low')b.push('突破时成交量特别小：不做');
+  if(k.noNews===false)b.push('因为消息、美股开盘，或者是暴涨暴跌后的 V 反：不做');
+  if(k.stopAt==='other')b.push('止损只用一种：放在突破那根 K 线另一端外面一点');
+  if(k.tgtBy==='other')w.push('目标最好用形态高度（旗形用旗杆长度）');
+  if(rr!=null&&rr<2)b.push(`目标只有止损距离的 ${rr.toFixed(2)} 倍，不到 2 倍：不做`);
+  return {block:b,warn:w,miss,ok:!b.length}}
+function kkSummary(k){if(!k)return '';const s=[];
+  if(k.dir)s.push('日线'+kkL('dir',k.dir));if(k.tf)s.push(kkL('tf',k.tf)+'上的形态');if(k.pat)s.push(kkL('pat',k.pat));if(k.touch)s.push('碰 '+kkL('touch',k.touch));
+  if(k.fail)s.push(kkL('fail',k.fail));if(k.conf)s.push(kkL('conf',k.conf));if(k.vol)s.push(kkL('vol',k.vol));
+  if(k.stopAt)s.push('止损：'+kkL('stopAt',k.stopAt));if(k.tgtBy)s.push('目标：'+kkL('tgtBy',k.tgtBy));return s.join(' · ')}
 /* Q-E1 怎么平的 */
 const EXIT=[['stop','止损单打掉的'],['tp','止盈单到了'],['market','我手动市价平的'],['limit','我挂限价平的'],['liq','被强平了']];
 const EXIT_OLD={target:'止盈或目标价',manual_win:'手动止盈',manual_loss:'手动止损',be:'保本附近出场',other:'其他'};
@@ -413,8 +457,7 @@ function gateEval(form){
   if(P.lastBigWinAt&&t-P.lastBigWinAt<30*MIN)cool.push(`大赚后冷静期，还剩 ${left(P.lastBigWinAt+30*MIN)} 分钟`);
   const lc=P.lastClose;if(lc&&lc.t&&t-lc.t<60*MIN&&lc.side&&lc.side!==form.side&&(lc.sym===form.symbol||form.symbol==='BTCUSDT'&&lc.sym==='BTCUSDT'))cool.push(`刚平完就反手（过去 18 次这样），还剩 ${left(lc.t+60*MIN)} 分钟`);
   if(form.symbol!=='BTCUSDT')block.push('只做 BTCUSDT');
-  if(!form.basis)block.push('没写结构依据');
-  if(/kol|直播|群|胡总|比特肥|老师|带单|喊单/i.test(form.basis||''))block.push('依据里不能写 KOL、群或带单');
+  if(/kol|直播|群|胡总|比特肥|老师|带单|喊单|kk\s*说/i.test(form.note||''))block.push('补充说明里不能写任何人的观点（KOL、群、带单、KK 说）');
   if(!form.invalid)block.push('没写“到什么情况说明我看错了”');
   let size=null;const e=form.entry,st=form.stop,tg=form.target,eq=form.equity;
   if(!(e>0&&st>0&&tg>0&&eq>0))block.push('入场、止损、目标、账户 u 数都要填数字');
@@ -425,10 +468,11 @@ function gateEval(form){
     const notional=qty*e,lev=notional/eq,riskAmt=qty*dist,rr=Math.abs(tg-e)/dist;
     size={r,dist,qty,qtyRisk,capped,notional,lev,riskAmt,riskPct:riskAmt/eq,rr};
     if(capped)warn.push(`按 ${(r*100).toFixed(2)}% 风险能开 ${qtyRisk.toFixed(3)}，超过本金 3 倍上限，只能开 ${qty.toFixed(3)}。不要为了多开去把止损挪远`);
-    if(rr<1.5)warn.push(`盈亏比 ${rr.toFixed(2)}，低于 1.5`);
     if(form.intended>0){size.intendRatio=form.intended/qty;if(size.intendRatio>1.05)warn.push(`你本来想开 ${form.intended}，是允许数量的 ${size.intendRatio.toFixed(1)} 倍。按允许的开`)}
   }
-  return {block,cool,warn,size};
+  const kk=kkEval(g.k,form.side,size?size.rr:null);block.push(...kk.block);warn.push(...kk.warn);
+  if(!(g.shots||[]).length)warn.push('没放下单前的 K 线截图：以后复盘、给 AI 看时，就看不到当时的图');
+  return {block,cool,warn,size,kk};
 }
 
 /* ================= 指标 ================= */
@@ -456,7 +500,7 @@ function metrics(list){
   m.recon={stopAtOpen:rp(t=>t.recon.stopAtOpen===true),noAddLoss:rp(t=>!t.recon.addLoss),noMoveStop:rp(t=>!(t.recon.stopBeyond||t.recon.cancelStop))};
   m.urges=C.reduce((a,t)=>a+((t.urges||[]).length),0);
   m.risk1=pct(t=>t.plan&&t.plan.riskPct!=null&&t.plan.riskPct<=0.01);m.lev3=pct(t=>{const l=levOf(t);return l!=null&&l<=3});
-  m.btc=pct(t=>t.symbol==='BTCUSDT');m.noOvernight=pct(t=>!overnight(t));m.cooldown=pct(t=>!t.afterLoss60);m.winCool=pct(t=>!t.afterBigWin30);m.noBeEarly=pct(t=>!(t.checks||{}).beEarly);m.allPass=pct(passAll);
+  m.btc=pct(t=>t.symbol==='BTCUSDT');m.noOvernight=pct(t=>!overnight(t));m.cooldown=pct(t=>!t.afterLoss60);m.winCool=pct(t=>!t.afterBigWin30);m.noBeEarly=pct(t=>!(t.checks||{}).beEarly);m.allPass=pct(passAll);m.kkOk=pct(t=>!!(t.plan&&t.plan.kk&&t.plan.kk.ok===true));
   const W=C.filter(t=>netPnl(t)>0),L=C.filter(t=>netPnl(t)<0);
   m.avgWin=W.length?W.reduce((a,t)=>a+netPnl(t),0)/W.length:null;m.avgLoss=L.length?L.reduce((a,t)=>a+netPnl(t),0)/L.length:null;
   m.payoff=m.avgWin!=null&&m.avgLoss?m.avgWin/-m.avgLoss:null;m.net=C.reduce((a,t)=>a+netPnl(t),0);
@@ -486,7 +530,11 @@ async function addFiles(files){
   render();
 }
 const guessKind=i=>i===0?'position':'chart';
-const KIND={position:'持仓 / 仓位',closed:'已平仓 / 历史仓位',orders:'委托 / 止损单',chart:'K 线图',other:'其他'};
+async function addGateFiles(files){const g=APP.gate||(APP.gate=freshGate());g.shots=g.shots||[];
+  const imgs=[...files].filter(f=>/^image\//.test(f.type));if(!imgs.length){toast('只能放图片截图');return}
+  for(const f of imgs){const b=await shrink(f);g.shots.push({tmp:URL.createObjectURL(b),blob:b,kind:g.shots.length===0?'preDay':'preTf'})}
+  g.res=null;render()}
+const KIND={preDay:'下单前 · 日线',preTf:'下单前 · 12 小时 / 4 小时',position:'持仓 / 仓位',closed:'已平仓 / 历史仓位',orders:'委托 / 止损单',chart:'K 线图',other:'其他'};
 
 /* ================= 草稿 ================= */
 function blankDraft(base){const bo=base&&base.open,bp=base&&base.plan;return {tradeId:base?base.id:null,mode:base?'close':'open',shots:[],f:{symbol:base?base.symbol:'BTCUSDT',side:base?base.side:'SHORT',entry:bo?bo.price:'',qty:bo?bo.qty:'',leverage:bo?bo.leverage:'',stop:bp?bp.stop:'',stopAtOpen:bo?bo.stopAtOpen:null,
@@ -514,7 +562,7 @@ function applyRecognition(res){const d=APP.draft;const shots=d.shots;
   if(num(sum.exit_price)!=null||(per.some(p=>p&&p.kind==='closed')))d.mode='close';
   d.aiNote='已按 AI 的回复填好黄色的格子，请逐个核对，错了直接改。'}
 async function copyText(txt,okMsg){try{await navigator.clipboard.writeText(txt);toast(okMsg||'已复制');return true}catch(e){APP.copyFallback=txt;render();toast('请长按下面的文字全选复制');return false}}
-function tradeBrief(t){return {no:t.no,symbol:t.symbol,side:t.side,status:t.status,plan:t.plan?{entry:t.plan.entry,stop0:t.plan.stop0??t.plan.stop,stopLast:t.plan.stop,target:t.plan.target,riskPct:t.plan.riskPct,lev:t.plan.lev,reasons:trigLabel(t),ifLosing:t.plan.ifLosing||null,bePolicy:t.plan.bePolicy||null,intendRatio:t.plan.intendRatio||null,gate:t.plan.gate,basis:t.plan.basis}:null,urges:(t.urges||[]).map(u=>u.kind),classification:t.classification||null,open:t.open?{time:t.open.t!=null?bj(t.open.t).str:null,price:t.open.price,qty:t.open.qty,firstPrice:t.open.price0??null,firstQty:t.open.qty0??null,leverage:t.open.leverage,stopAtOpen:t.open.stopAtOpen}:null,close:t.close?{time:bj(t.close.t).str,price:t.close.price,pnl:t.close.pnl,fee:t.close.fee??null,feeIncluded:t.close.feeIncl||null,net:netPnl(t),exitType:t.close.exitType}:null,events:(t.events||[]).map(e=>Object.assign({},e,{t:bj(e.t).str})),checks:t.checks||null,afterLoss60:!!t.afterLoss60,afterBigWin30:!!t.afterBigWin30,overnight:overnight(t),emotion:t.emotion||null,review:t.review?{grade:t.review.grade,realReasons:t.review.realTriggers||null,exitWhy:t.review.exitWhy||null,stopMoves:t.review.smoves||null,stopHit:t.review.stopHit||null,floatMax:t.review.floatMax||null,floatActs:t.review.floatActs||null,holdOther:t.review.holdOther||null,afterClose:t.review.afterClose||null,lesson:t.review.lesson,next:t.review.next}:null,note:t.note||''}}
+function tradeBrief(t){return {no:t.no,symbol:t.symbol,side:t.side,status:t.status,plan:t.plan?{entry:t.plan.entry,stop0:t.plan.stop0??t.plan.stop,stopLast:t.plan.stop,target:t.plan.target,riskPct:t.plan.riskPct,lev:t.plan.lev,reasons:trigLabel(t),ifLosing:t.plan.ifLosing||null,bePolicy:t.plan.bePolicy||null,intendRatio:t.plan.intendRatio||null,gate:t.plan.gate,basis:t.plan.basis,kk:t.plan.kk||null,rr:t.plan.rr??null}:null,urges:(t.urges||[]).map(u=>u.kind),classification:t.classification||null,open:t.open?{time:t.open.t!=null?bj(t.open.t).str:null,price:t.open.price,qty:t.open.qty,firstPrice:t.open.price0??null,firstQty:t.open.qty0??null,leverage:t.open.leverage,stopAtOpen:t.open.stopAtOpen}:null,close:t.close?{time:bj(t.close.t).str,price:t.close.price,pnl:t.close.pnl,fee:t.close.fee??null,feeIncluded:t.close.feeIncl||null,net:netPnl(t),exitType:t.close.exitType}:null,events:(t.events||[]).map(e=>Object.assign({},e,{t:bj(e.t).str})),checks:t.checks||null,afterLoss60:!!t.afterLoss60,afterBigWin30:!!t.afterBigWin30,overnight:overnight(t),emotion:t.emotion||null,review:t.review?{grade:t.review.grade,realReasons:t.review.realTriggers||null,exitWhy:t.review.exitWhy||null,stopMoves:t.review.smoves||null,stopHit:t.review.stopHit||null,floatMax:t.review.floatMax||null,floatActs:t.review.floatActs||null,holdOther:t.review.holdOther||null,afterClose:t.review.afterClose||null,lesson:t.review.lesson,next:t.review.next}:null,note:t.note||''}}
 function reviewPrompt(t){const recent=realTrades().filter(x=>x.id!==t.id).slice(0,8).map(x=>`#${x.no} ${x.symbol} ${x.side==='LONG'?'多':'空'} ${x.close?fmtMoney(netPnl(x)):'持仓中'} ${x.review?x.review.grade:''} ${(x.checks&&Object.keys(x.checks).filter(k=>x.checks[k]===true&&['addLoss','moveStop','cancelStop','transfer','second','badState'].includes(k)).join(','))||''}`).join('\n');
   return `你是一位严格但友善的交易纪律教练。只评价“过程是否守规则、是否在重复旧错误”，不预测行情，不给任何买卖或方向建议。不要提历史最高权益、离回本还差多少、“本来能赚多少”。
 背景：${PROFILE_SUMMARY}
@@ -713,6 +761,7 @@ function render(){tabs();const v=$('#view');
   v.innerHTML=({today:viewToday,capture:viewCapture,review:viewReview,progress:viewProgress,ai:viewAI,gate:viewGate,week:viewWeek,setup:viewSetup}[APP.route]||viewToday)();
   hydrate();updatePill();
   if(APP.route==='capture')bindDrop();
+  if(APP.route==='gate')bindGateDrop();
 }
 function statusStrip(){rollDay();const P=APP.P,t=now();const cd=u=>u>t?Math.ceil((u-t)/MIN)+' 分':'无';
   return `<div class="stats"><div>阶段<b>第 ${P.stage} 阶段${P.stage?' · '+(RISK[P.stage]*100)+'%':''}</b></div><div>今天<b>${P.dayTrades} 笔${P.dayStopped?' · 已停':''}</b></div><div>7 天违规<b>${recentViol().length} 次</b></div><div>亏损冷静<b>${P.lastLossAt?cd(P.lastLossAt+60*MIN):'无'}</b></div><div>大赚冷静<b>${P.lastBigWinAt?cd(P.lastBigWinAt+30*MIN):'无'}</b></div><div>升级进度<b>${P.stage===0?`${Math.min(14,Math.floor((t-P.stageStart)/DAY))}/14 天·${P.paperPlans}/10`:P.stage<3?P.stageCount+'/30 笔':'最高'}</b></div></div>`}
@@ -764,34 +813,49 @@ function holdingCard(o){const ev=o.events||[];const msg=APP.evMsg&&APP.evMsg.id=
 
 /* ---------- 闸门 ---------- */
 function gateForm(){if(!APP.gate)APP.gate=freshGate();const g=APP.gate;g.f=g.f||{symbol:'BTCUSDT',side:'SHORT',entry:'',stop:'',target:'',equity:APP.P.equity||'',basis:'',invalid:'',intended:'',preplan:false};return g.f}
-const freshGate=()=>({ans:{},isPlan:null,trigs:[],none:false,ifLose:null,bePol:null,levOk:null,res:null});
+const freshGate=()=>({ans:{},isPlan:null,trigs:[],none:false,ifLose:null,bePol:null,levOk:null,res:null,k:{},shots:[]});
 const yn=(act,k,val,yes='是',no='否')=>`<span class="seg"><button type="button" class="y" data-act="${act}" data-k="${k}" data-v="1" aria-pressed="${val===true}">${yes}</button><button type="button" class="n" data-act="${act}" data-k="${k}" data-v="0" aria-pressed="${val===false}">${no}</button></span>`;
 function viewGate(){if(!APP.gate)APP.gate=freshGate();const g=APP.gate,f=gateForm();const r=g.res;const P=APP.P;
-  const light=r?`<div class="light ${r.block.length?'block':r.cool.length?'cool':'pass'}"><div class="sig"><i></i><b>${r.block.length?'红灯：不能下单':r.cool.length?'黄灯：先等一等':'绿灯：可以下单'}</b></div><ul>${[...r.block,...r.cool].map(x=>`<li>${esc(x)}</li>`).join('')}${r.warn.map(x=>`<li class="wait">提醒：${esc(x)}</li>`).join('')}${!r.block.length&&!r.cool.length?'<li>全部通过。按下面的数量下单，同一步挂好止损。</li>':''}</ul>${r.size?`<div class="stats"><div>最多开<b>${r.size.qty.toFixed(3)}</b></div><div>仓位总价值<b>${Math.round(r.size.notional).toLocaleString('en-US')}</b></div><div>是本金的<b>${r.size.lev.toFixed(2)} 倍</b></div><div>最多亏<b>${r.size.riskAmt.toFixed(2)}</b></div><div>止损距离<b>${(r.size.dist/(num(f.entry)||1)*100).toFixed(2)}%</b></div><div>盈亏比<b>${r.size.rr.toFixed(2)}</b></div></div>`:''}${!r.block.length&&!r.cool.length?`<label class="f">下单后：实际成交了多少（币）<input id="g_filled" data-g="filled" inputmode="decimal" value="${esc(f.filled||'')}" placeholder="例如 ${r.size.qty.toFixed(3)}"></label><button type="button" class="btn go" data-act="gateOpen">已下单，并同时挂好了止损</button>`:''}</div>`:'';
+  const light=r?`<div class="light ${r.block.length?'block':r.cool.length?'cool':'pass'}"><div class="sig"><i></i><b>${r.block.length?'红灯：不能下单':r.cool.length?'黄灯：先等一等':'绿灯：可以下单'}</b></div><ul>${[...r.block,...r.cool].map(x=>`<li>${esc(x)}</li>`).join('')}${r.warn.map(x=>`<li class="wait">提醒：${esc(x)}</li>`).join('')}${!r.block.length&&!r.cool.length?'<li>全部通过。按下面的数量下单，同一步挂好止损。</li>':''}</ul>${r.size?`<div class="stats"><div>最多开<b>${r.size.qty.toFixed(3)}</b></div><div>仓位总价值<b>${Math.round(r.size.notional).toLocaleString('en-US')}</b></div><div>是本金的<b>${r.size.lev.toFixed(2)} 倍</b></div><div>最多亏<b>${r.size.riskAmt.toFixed(2)}</b></div><div>止损距离<b>${(r.size.dist/(num(f.entry)||1)*100).toFixed(2)}%</b></div><div>目标倍数<b>${r.size.rr.toFixed(2)}</b></div></div>`:''}${!r.block.length&&!r.cool.length?`<label class="f">下单后：实际成交了多少（币）<input id="g_filled" data-g="filled" inputmode="decimal" value="${esc(f.filled||'')}" placeholder="例如 ${r.size.qty.toFixed(3)}"></label><button type="button" class="btn go" data-act="gateOpen">已下单，并同时挂好了止损</button>`:''}</div>`:'';
   const cm=(P.commitments||[]).filter(c=>c&&c.text);
   return `<section class="card"><div class="btns"><button type="button" class="btn sec" data-act="tab" data-v="today">返回</button></div><h2>下单前检查</h2><p class="small muted">从上往下填，最后点检查。红灯就不下单。</p>${cm.length?`<div class="promise"><b>我的承诺</b><ol>${cm.map(c=>`<li>${esc(c.text)}</li>`).join('')}</ol></div>`:''}</section>
   <section class="card"><h3>1 · 现在的状态</h3>${STATE_QS.map(q=>`<div class="yn"><span>${q[1]}</span>${yn('ans',q[0],g.ans[q[0]])}</div>`).join('')}<p class="small muted">半夜（00–08 点）由时间自动判断。</p></section>
   <section class="card"><h3>2 · 为什么想开这一单</h3><div class="yn"><span>依据是自己提前写好的结构计划吗</span>${yn('gset','isPlan',g.isPlan,'是','不是')}</div>
    <div class="f">此刻有没有下面这些情况？有就点（可多选）<div class="seg">${TRIG.map(x=>`<button type="button" class="n" data-act="gtrig" data-v="${x[0]}" aria-pressed="${g.trigs.includes(x[0])}">${x[1]}</button>`).join('')}<button type="button" class="y" data-act="gtrig" data-v="none" aria-pressed="${g.none}">没有，以上都不是</button></div></div></section>
-  <section class="card"><h3>3 · 写下计划</h3><div class="fields">
+  ${kkSection(g)}
+  <section class="card"><h3>4 · 写下计划</h3><div class="fields">
    <label class="f">品种<select id="g_symbol" data-g="symbol"><option value="BTCUSDT" ${f.symbol==='BTCUSDT'?'selected':''}>BTCUSDT</option><option value="OTHER" ${f.symbol!=='BTCUSDT'?'selected':''}>其他品种</option></select></label>
    <label class="f">方向<select id="g_side" data-g="side"><option value="SHORT" ${f.side==='SHORT'?'selected':''}>空</option><option value="LONG" ${f.side==='LONG'?'selected':''}>多</option></select></label>
    <label class="f">入场价<input id="g_entry" data-g="entry" inputmode="decimal" value="${esc(f.entry)}" placeholder="例如 62000"></label>
    <label class="f">止损价<input id="g_stop" data-g="stop" inputmode="decimal" value="${esc(f.stop)}" placeholder="例如 62600"></label>
    <label class="f">目标价<input id="g_target" data-g="target" inputmode="decimal" value="${esc(f.target)}" placeholder="例如 60800"></label>
    <label class="f">合约账户现在有多少 u<input id="g_equity" data-g="equity" inputmode="decimal" value="${esc(f.equity)}" placeholder="例如 1000"></label>
-   <label class="f wide">结构依据（收线后的 K 线，不写别人的观点）<textarea id="g_basis" data-g="basis" placeholder="例如：1 小时收线跌破 M 顶颈线，回抽不过">${esc(f.basis)}</textarea></label>
+   <label class="f wide">补充说明（选填；结构依据在第 3 步点选，这里不写任何人的观点）<textarea id="g_basis" data-g="basis" placeholder="例如：12 小时直角三角，平边 62,000，碰了 4 次">${esc(f.basis)}</textarea></label>
    <label class="f wide">到什么情况说明我看错了（到这就不做了）<textarea id="g_invalid" data-g="invalid" placeholder="例如：1 小时收回颈线上方">${esc(f.invalid)}</textarea></label>
    <label class="f wide">你本来想开多少（选填，不影响能开多少，只是记下来）<input id="g_intended" data-g="intended" inputmode="decimal" value="${esc(f.intended)}" placeholder="例如 0.5"></label>
   </div><label class="small" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="g_preplan" data-g="preplan" ${f.preplan?'checked':''} style="margin-top:6px"> 这是 18:00 之前就写好的计划（19:00–23:00 必须勾选）</label></section>
-  <section class="card"><h3>4 · 先想好</h3>
+  <section class="card"><h3>5 · 先想好</h3>
    <div class="f">如果开仓后浮亏，你打算怎么办？<div class="seg">${IFLOSE.map(x=>`<button type="button" class="${x[0]==='letStop'?'y':'n'}" data-act="gpick" data-k="ifLose" data-v="${x[0]}" aria-pressed="${g.ifLose===x[0]}">${x[1]}</button>`).join('')}</div></div>
    <div class="f">浮盈后什么时候把止损挪到成本？<div class="seg">${BEPOL.map(x=>`<button type="button" class="${x[0]==='after1R'?'y':'n'}" data-act="gpick" data-k="bePol" data-v="${x[0]}" aria-pressed="${g.bePol===x[0]}">${x[1]}</button>`).join('')}</div></div>
    <div class="yn"><span>交易所杠杆是 3 倍以下、逐仓吗</span>${yn('gset','levOk',g.levOk)}</div>
   <div class="btns full"><button type="button" class="btn" data-act="gateCheck">检查能不能下单</button><button type="button" class="btn sec" data-act="paper">只写计划，不下单</button></div></section>${light}`}
-function gateValues(){const f=gateForm();return {symbol:f.symbol,side:f.side,entry:num(f.entry),stop:num(f.stop),target:num(f.target),equity:num(f.equity),basis:(f.basis||'').trim(),invalid:(f.invalid||'').trim(),intended:num(f.intended),preplan:!!f.preplan}}
+function kkSection(g){const k=g.k||(g.k={});const shots=g.shots||[];
+  const pick=(key,title)=>`<div class="f">${title}<div class="seg">${KK[key].map(x=>`<button type="button" data-act="kpick" data-k="${key}" data-v="${x[0]}" aria-pressed="${k[key]===x[0]}">${x[1]}</button>`).join('')}</div></div>`;
+  const q=key=>`<div class="yn"><span>${KKQ[key]}</span>${yn('kset',key,k[key])}</div>`;
+  const kr=kkEval(k,gateForm().side,null);const done=Object.keys(KKNAME).length-kr.miss.length;
+  return `<section class="card"><h3>3 · 结构依据（KK 清单）</h3><p class="small muted">按 KK 的方法逐项点选，已选 ${done} / ${Object.keys(KKNAME).length}。有一项不合格就是红灯。哪一项看不懂，去仓库 5_学习资料/KK2020/ 看图解。</p>
+  <h4>先看大的</h4>${pick('dir','日线现在是')}
+  <h4>线和形态</h4>${pick('tf','形态画在哪个级别上')}${pick('pat','是哪种形态')}${pick('touch','这条线碰了几次')}${q('pts')}${q('flat')}${pick('fail','这条线以前假突破过吗')}${q('norev')}
+  <h4>真的突破了吗</h4>${pick('conf','突破是怎么确认的')}${q('wickOk')}${pick('vol','突破时的成交量')}${q('noNews')}
+  <h4>止损和目标</h4>${pick('stopAt','止损放在哪')}${pick('tgtBy','目标怎么定')}<p class="small muted">目标倍数（目标距离 ÷ 止损距离）在第 4 步填完价格后自动算，不到 2 倍是红灯。</p>
+  <h4>下单前的 K 线截图（建议放）</h4><p class="small muted">放一张日线、一张 12 小时或 4 小时的图，最好把线画在图上。复盘时和以后的 AI 都能看到你当时看到的图。</p>
+  <div class="drop" id="gdrop" tabindex="0" role="button" data-act="gpickImg"><b>放截图</b><span class="small muted">点这里选图，或直接粘贴、拖进来</span></div>
+  <input type="file" id="gfileIn" accept="image/*" multiple hidden>
+  ${shots.length?`<div class="thumbs">${shots.map((s,i)=>`<div class="thumb"><img src="${s.tmp}" alt="下单前截图 ${i+1}"><select data-act-change="gkind" data-i="${i}" aria-label="截图类型"><option value="preDay" ${s.kind==='preDay'?'selected':''}>${KIND.preDay}</option><option value="preTf" ${s.kind==='preTf'?'selected':''}>${KIND.preTf}</option></select><button type="button" data-act="grmShot" data-i="${i}">移除</button></div>`).join('')}</div>`:''}
+  </section>`}
+function gateValues(){const f=gateForm();return {symbol:f.symbol,side:f.side,entry:num(f.entry),stop:num(f.stop),target:num(f.target),equity:num(f.equity),basis:[kkSummary((APP.gate||{}).k),(f.basis||'').trim()].filter(Boolean).join('；'),note:(f.basis||'').trim(),invalid:(f.invalid||'').trim(),intended:num(f.intended),preplan:!!f.preplan}}
 function gatePlan(v,r,gate){const g=APP.gate;return {gate,isPlan:g.isPlan,triggers:g.trigs.slice(),trigger:g.trigs.length?g.trigs[0]:(g.isPlan===true?'plan':null),state:clone(g.ans),ifLosing:g.ifLose,bePolicy:g.bePol,levOk:g.levOk,entry:v.entry,stop:v.stop,stop0:v.stop,target:v.target,equity:v.equity,
-  riskPct:r&&r.size?r.size.riskPct:null,riskAmt:r&&r.size?r.size.riskAmt:null,qtyMax:r&&r.size?r.size.qty:null,lev:r&&r.size?r.size.lev:null,intendedQty:v.intended,intendRatio:r&&r.size&&r.size.intendRatio?+r.size.intendRatio.toFixed(2):null,basis:v.basis,invalid:v.invalid}}
+  riskPct:r&&r.size?r.size.riskPct:null,riskAmt:r&&r.size?r.size.riskAmt:null,qtyMax:r&&r.size?r.size.qty:null,lev:r&&r.size?r.size.lev:null,intendedQty:v.intended,intendRatio:r&&r.size&&r.size.intendRatio?+r.size.intendRatio.toFixed(2):null,basis:v.basis,invalid:v.invalid,note:v.note||null,kk:Object.assign({v:1},clone(g.k||{}),{ok:r&&r.kk?r.kk.ok:null,fails:r&&r.kk?r.kk.block.slice(0,12):[]}),rr:r&&r.size?+r.size.rr.toFixed(2):null}}
 
 /* ---------- 记一笔 ---------- */
 function viewCapture(){const d=APP.draft||(APP.draft=blankDraft());const f=d.f;const o=openTrade();const base=d.tradeId?APP.T.find(t=>t.id===d.tradeId):null;
@@ -838,13 +902,19 @@ function viewCapture(){const d=APP.draft||(APP.draft=blankDraft());const f=d.f;c
   <div class="f">开仓那一刻，有没有下面这些情况？照实点（可多选）<div class="seg">${TRIG.map(x=>`<button type="button" class="n" data-act="dtrig" data-v="${x[0]}" aria-pressed="${f.trigs.includes(x[0])}">${x[1]}</button>`).join('')}<button type="button" class="y" data-act="dtrig" data-v="none" aria-pressed="${f.none}">没有，以上都不是</button></div></div>`:''}
   <label class="f wide">一句话备注（可不填）<input id="c_note" data-d="note" value="${esc(f.note)}" placeholder="例如：等了一下午，收线后才进"></label>
   <div class="btns full"><button type="button" class="btn" data-act="saveDraft" ${APP.busy?'disabled':''}>${APP.busy?'正在保存…':d.mode==='close'?'保存并复盘':'保存'}</button><button type="button" class="btn sec" data-act="cancelDraft">清空</button></div></section>`}`}
+function bindGateDrop(){const z=$('#gdrop'),inp=$('#gfileIn');if(!z)return;
+  inp.onchange=()=>{if(inp.files.length)addGateFiles(inp.files);inp.value=''};
+  z.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();inp.click()}});
+  ['dragenter','dragover'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.add('over')}));
+  ['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.remove('over')}));
+  z.addEventListener('drop',e=>{if(e.dataTransfer&&e.dataTransfer.files.length)addGateFiles(e.dataTransfer.files)})}
 function bindDrop(){const z=$('#drop'),inp=$('#fileIn');if(!z)return;
   inp.onchange=()=>{if(inp.files.length)addFiles(inp.files);inp.value=''};
   z.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();inp.click()}});
   ['dragenter','dragover'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.add('over')}));
   ['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.remove('over')}));
   z.addEventListener('drop',e=>{if(e.dataTransfer&&e.dataTransfer.files.length)addFiles(e.dataTransfer.files)})}
-document.addEventListener('paste',e=>{if(APP.route!=='capture'||APP.detail)return;const fs=[...(e.clipboardData?e.clipboardData.files:[])];if(fs.length){e.preventDefault();addFiles(fs)}});
+document.addEventListener('paste',e=>{if(APP.detail||(APP.route!=='capture'&&APP.route!=='gate'))return;const fs=[...(e.clipboardData?e.clipboardData.files:[])];if(fs.length){e.preventDefault();(APP.route==='gate'?addGateFiles:addFiles)(fs)}});
 
 /* ---------- 复盘 ---------- */
 function viewReview(){
@@ -865,7 +935,7 @@ function viewWizard(){const w=APP.wiz,t=APP.T.find(x=>x.id===w.id);if(!t){APP.wi
   const N=6,s=w.step;const head=`<section class="card"><div class="btns"><button type="button" class="btn sec" data-act="wizQuit">先不做了</button></div><div class="steps">${Array.from({length:N},(_,i)=>`<i class="${i<=s?'on':''}"></i>`).join('')}</div><span class="small muted">#${t.no} ${esc(t.symbol)} ${t.side==='LONG'?'多':'空'} · ${t.close?fmtMoney(netPnl(t)):''} · 第 ${s+1}/${N} 步</span></section>`;
   const R=rOf(t);let body='';
   if(s===0){const before=(t.plan&&Array.isArray(t.plan.triggers))?(t.plan.isPlan?['plan']:[]).concat(t.plan.triggers):null;const diff=before&&w.real.length&&(before.slice().sort().join()!==w.real.slice().sort().join());
-    body=`<section class="card"><h2>先看一眼计划和结果</h2><dl class="kv"><dt>开单时说的理由</dt><dd>${esc(trigLabel(t))}</dd><dt>下单前检查</dt><dd>${t.plan&&t.plan.gate==='pass'?'<span class="go">做了，绿灯</span>':'<span class="stop">没做</span>'}</dd><dt>计划</dt><dd>${t.plan&&t.plan.entry?`入场 ${t.plan.entry} · 止损 ${t.plan.stop0??t.plan.stop} · 目标 ${t.plan.target}`:'没写'}</dd><dt>实际</dt><dd>开 ${t.open?t.open.price0??t.open.price:'—'} → 平 ${t.close&&t.close.price!=null?t.close.price:'—'} · ${t.close?fmtMoney(netPnl(t)):''}${R!=null?` · ${R>=0?'赚':'亏'}了计划亏损的 ${Math.abs(R).toFixed(2)} 倍`:''}</dd><dt>持仓</dt><dd>${t.open&&t.close&&t.open.t!=null?Math.round((t.close.t-t.open.t)/MIN)+' 分钟':''}${overnight(t)?' · <span class="stop">跨过了凌晨</span>':''}${t.afterLoss60?' · <span class="stop">亏损后 60 分钟内开的</span>':''}${t.afterBigWin30?' · <span class="stop">大赚后 30 分钟内开的</span>':''}</dd></dl>${(t.events||[]).length?`<h4>持仓中记下的动作</h4><div class="evs">${t.events.map(evLine).join('')}</div>`:''}${(t.shots||[]).length?`<div class="shots">${t.shots.map(x=>`<img data-img="${esc(x.p)}" alt="${esc(KIND[x.kind]||'截图')}">`).join('')}</div>`:''}</section>
+    body=`<section class="card"><h2>先看一眼计划和结果</h2><dl class="kv"><dt>开单时说的理由</dt><dd>${esc(trigLabel(t))}</dd><dt>下单前检查</dt><dd>${t.plan&&t.plan.gate==='pass'?'<span class="go">做了，绿灯</span>':'<span class="stop">没做</span>'}</dd><dt>计划</dt><dd>${t.plan&&t.plan.entry?`入场 ${t.plan.entry} · 止损 ${t.plan.stop0??t.plan.stop} · 目标 ${t.plan.target}`:'没写'}</dd>${t.plan&&t.plan.kk?`<dt>结构依据</dt><dd>${esc(t.plan.basis||'')}${t.plan.kk.ok===false?' · <span class="stop">KK 清单不合格</span>':''}</dd>`:''}<dt>实际</dt><dd>开 ${t.open?t.open.price0??t.open.price:'—'} → 平 ${t.close&&t.close.price!=null?t.close.price:'—'} · ${t.close?fmtMoney(netPnl(t)):''}${R!=null?` · ${R>=0?'赚':'亏'}了计划亏损的 ${Math.abs(R).toFixed(2)} 倍`:''}</dd><dt>持仓</dt><dd>${t.open&&t.close&&t.open.t!=null?Math.round((t.close.t-t.open.t)/MIN)+' 分钟':''}${overnight(t)?' · <span class="stop">跨过了凌晨</span>':''}${t.afterLoss60?' · <span class="stop">亏损后 60 分钟内开的</span>':''}${t.afterBigWin30?' · <span class="stop">大赚后 30 分钟内开的</span>':''}</dd></dl>${(t.events||[]).length?`<h4>持仓中记下的动作</h4><div class="evs">${t.events.map(evLine).join('')}</div>`:''}${(t.shots||[]).length?`<div class="shots">${t.shots.map(x=>`<img data-img="${esc(x.p)}" alt="${esc(KIND[x.kind]||'截图')}">`).join('')}</div>`:''}</section>
     <section class="card"><h3>回头看，开这单真正的原因是？（可多选）</h3>${multi('wreal',REAL,w.real,k=>k==='plan'?'y':'n')}${diff?`<p class="small wait">开单前选的是“${esc(before.map(k=>k==='plan'?'自己写好的计划':trigText(k)).join('、')||'—')}”，现在选的是“${esc(w.real.map(k=>k==='plan'?'自己写好的计划':trigText(k)).join('、'))}”。只记下来，不扣分。</p>`:''}
     ${t.plan&&t.plan.gate==='pass'?`<div class="yn"><span>入场是按计划的价位和理由吗</span>${yn('wset','followEntry',w.followEntry)}</div>`:`<p class="small muted">这笔没做下单前检查，没有计划可对照，“按计划执行”一项直接算没做到。</p>`}${nav(s)}</section>`}
   if(s===1){const beQ=w.smoves.includes('be')||w.smoves.includes('smallWin');
@@ -911,7 +981,7 @@ function wizDone(){const w=APP.wiz,t=APP.T.find(x=>x.id===w.id);if(!t)return;con
 /* ---------- 详情 ---------- */
 function viewDetail(id){const t=APP.T.find(x=>x.id===id);if(!t){APP.detail=null;return viewToday()}const g=t.review&&t.review.grade?GRADE[t.review.grade]:null;
   return `<section class="card"><div class="btns"><button type="button" class="btn sec" data-act="back">返回</button></div><h2>#${t.no} ${esc(t.symbol)} ${t.side==='LONG'?'多':'空'} ${t.close?`<span class="${netPnl(t)<0?'stop':'go'}">${fmtMoney(netPnl(t))}</span>`:''}</h2>${g?`<p><span class="chip ${t.review.grade[0]==='G'?'grn':'red'}">${g[0]}</span> <span class="small muted">${g[1]}</span></p>`:''}
-  <dl class="kv"><dt>开仓</dt><dd>${t.open?`${bj(t.open.t).str} · ${t.open.price??'—'} × ${t.open.qty??'—'}${t.open.leverage?` · ${t.open.leverage} 倍`:''}`:'—'}</dd><dt>平仓</dt><dd>${t.close?`${bj(t.close.t).str} · ${t.close.price??'—'} · ${esc(exitText(t.close.exitType))}`:'持仓中'}</dd>${t.close?`<dt>盈亏</dt><dd>交易所显示 ${fmtMoney(t.close.pnl)}${t.close.fee!=null?` · 手续费 ${t.close.fee}`:''}${t.close.feeIncl==='no'&&t.close.fee!=null?` · 扣费后 <b>${fmtMoney(netPnl(t))}</b>`:t.close.feeIncl==='yes'?'（已扣手续费）':''}</dd>`:''}${t.open&&t.close&&t.open.t!=null?`<dt>持仓</dt><dd>${Math.round((t.close.t-t.open.t)/MIN)} 分钟${overnight(t)?' · <span class="stop">跨过了凌晨</span>':''}${t.afterLoss60?' · <span class="stop">亏损后 60 分钟内开</span>':''}${t.afterBigWin30?' · <span class="stop">大赚后 30 分钟内开</span>':''}</dd>`:''}<dt>计划</dt><dd>${t.plan&&t.plan.entry?`入场 ${t.plan.entry} · 止损 ${t.plan.stop} · 目标 ${t.plan.target} · 风险 ${t.plan.riskPct!=null?(t.plan.riskPct*100).toFixed(2)+'%':'—'}`:(t.plan&&t.plan.stop?'止损 '+t.plan.stop:'没写')}</dd><dt>下单前检查</dt><dd>${t.plan&&t.plan.gate==='pass'?'做了，绿灯':t.plan&&t.plan.gate==='paper'?'只写了计划，没下单':'没做'}</dd><dt>开单理由</dt><dd>${esc(trigLabel(t))}</dd>${t.classification?`<dt>原表分类</dt><dd>${esc([t.classification.出场方式,t.classification.止损类型,t.classification.扛单类型,t.classification.交易类型].join(' · '))}</dd>`:''}${t.plan&&t.plan.basis?`<dt>依据</dt><dd>${esc(t.plan.basis)}</dd>`:''}${t.review&&t.review.lesson?`<dt>教训</dt><dd>${esc(t.review.lesson)}</dd>`:''}${t.review&&t.review.next?`<dt>下一笔动作</dt><dd>${esc(t.review.next)}</dd>`:''}${t.note?`<dt>备注</dt><dd>${esc(t.note)}</dd>`:''}</dl>
+  <dl class="kv"><dt>开仓</dt><dd>${t.open?`${bj(t.open.t).str} · ${t.open.price??'—'} × ${t.open.qty??'—'}${t.open.leverage?` · ${t.open.leverage} 倍`:''}`:'—'}</dd><dt>平仓</dt><dd>${t.close?`${bj(t.close.t).str} · ${t.close.price??'—'} · ${esc(exitText(t.close.exitType))}`:'持仓中'}</dd>${t.close?`<dt>盈亏</dt><dd>交易所显示 ${fmtMoney(t.close.pnl)}${t.close.fee!=null?` · 手续费 ${t.close.fee}`:''}${t.close.feeIncl==='no'&&t.close.fee!=null?` · 扣费后 <b>${fmtMoney(netPnl(t))}</b>`:t.close.feeIncl==='yes'?'（已扣手续费）':''}</dd>`:''}${t.open&&t.close&&t.open.t!=null?`<dt>持仓</dt><dd>${Math.round((t.close.t-t.open.t)/MIN)} 分钟${overnight(t)?' · <span class="stop">跨过了凌晨</span>':''}${t.afterLoss60?' · <span class="stop">亏损后 60 分钟内开</span>':''}${t.afterBigWin30?' · <span class="stop">大赚后 30 分钟内开</span>':''}</dd>`:''}<dt>计划</dt><dd>${t.plan&&t.plan.entry?`入场 ${t.plan.entry} · 止损 ${t.plan.stop} · 目标 ${t.plan.target} · 风险 ${t.plan.riskPct!=null?(t.plan.riskPct*100).toFixed(2)+'%':'—'}`:(t.plan&&t.plan.stop?'止损 '+t.plan.stop:'没写')}</dd><dt>下单前检查</dt><dd>${t.plan&&t.plan.gate==='pass'?'做了，绿灯':t.plan&&t.plan.gate==='paper'?'只写了计划，没下单':'没做'}</dd><dt>开单理由</dt><dd>${esc(trigLabel(t))}</dd>${t.classification?`<dt>原表分类</dt><dd>${esc([t.classification.出场方式,t.classification.止损类型,t.classification.扛单类型,t.classification.交易类型].join(' · '))}</dd>`:''}${t.plan&&t.plan.basis?`<dt>依据</dt><dd>${esc(t.plan.basis)}</dd>`:''}${t.plan&&t.plan.kk?`<dt>KK 清单</dt><dd>${t.plan.kk.ok?'<span class="go">合格</span>':`<span class="stop">不合格</span>：${esc((t.plan.kk.fails||[]).join('；'))}`}${t.plan.rr!=null?` · 目标倍数 ${t.plan.rr}`:''}</dd>`:''}${t.review&&t.review.lesson?`<dt>教训</dt><dd>${esc(t.review.lesson)}</dd>`:''}${t.review&&t.review.next?`<dt>下一笔动作</dt><dd>${esc(t.review.next)}</dd>`:''}${t.note?`<dt>备注</dt><dd>${esc(t.note)}</dd>`:''}</dl>
   ${(t.events||[]).length?`<h4>持仓中记下的动作</h4><div class="evs">${t.events.map(evLine).join('')}</div>`:''}
   ${(t.shots||[]).length?`<div class="shots">${t.shots.map(x=>`<img data-img="${esc(x.p)}" alt="${esc(KIND[x.kind]||'截图')}">`).join('')}</div>`:''}
   <div class="btns">${t.status==='open'?`<button type="button" class="btn" data-act="closeOpen">记录平仓</button>`:''}${t.status==='closed'||t.status==='reviewed'?`<button type="button" class="btn ${t.status==='closed'?'':'sec'}" data-act="wizStart" data-id="${t.id}">${t.status==='closed'?'开始复盘':'重新复盘'}</button>`:''}<button type="button" class="btn sec" data-act="addShots" data-id="${t.id}">补充截图</button></div></section>
@@ -926,7 +996,7 @@ function classCompare(list,field){const now0={};list.forEach(t=>{const c=t.class
   return `<div class="cmp"><div class="cmp-h"><span>${field}</span><span>过去 136 笔</span><span>最近 ${nN} 笔</span></div>${keys.map(k=>{const b=(base[k]||0)/bN,n=nN?(now0[k]||0)/nN:null;return `<div class="cmp-r"><span>${esc(k)}</span><span class="cbar"><i style="width:${Math.round(b*100)}%" class="${good(k)?'g':'b'}"></i><em>${Math.round(b*100)}%</em></span><span class="cbar">${n!=null?`<i style="width:${Math.round(n*100)}%" class="${good(k)?'g':'b'}"></i><em>${Math.round(n*100)}%</em>`:'<em>—</em>'}</span></div>`}).join('')}</div>`}
 function viewProgress(){
   const all=realTrades();const cut=now()-30*DAY;const recent=all.filter(t=>(t.open&&t.open.t!=null?t.open.t:t.createdAt)>=cut);const m=metrics(recent),ma=metrics(all);
-  const rows=[['全部规则都守住的比例','allPass'],['做了下单前检查','gateRate'],['开仓时就挂了止损','stopAtOpen','自报'],['没有浮亏加仓','noAddLoss','自报'],['止损没挪到第一张止损外面、没撤','noMoveStop','自报'],['单笔风险 ≤ 本金 1%','risk1'],['仓位 ≤ 本金 3 倍','lev3'],['只做 BTCUSDT','btc'],['没有带仓过夜','noOvernight'],['亏损后 60 分钟内没开','cooldown'],['大赚后 30 分钟内没开','winCool'],['浮盈不到 1 倍没挪保本','noBeEarly','自报'],['平仓后做了复盘','reviewRate']];
+  const rows=[['全部规则都守住的比例','allPass'],['做了下单前检查','gateRate'],['结构依据合格（KK 清单）','kkOk'],['开仓时就挂了止损','stopAtOpen','自报'],['没有浮亏加仓','noAddLoss','自报'],['止损没挪到第一张止损外面、没撤','noMoveStop','自报'],['单笔风险 ≤ 本金 1%','risk1'],['仓位 ≤ 本金 3 倍','lev3'],['只做 BTCUSDT','btc'],['没有带仓过夜','noOvernight'],['亏损后 60 分钟内没开','cooldown'],['大赚后 30 分钟内没开','winCool'],['浮盈不到 1 倍没挪保本','noBeEarly','自报'],['平仓后做了复盘','reviewRate']];
   const mrow=r=>{const v=m[r[1]],b=BASE[r[1]];const better=v!=null&&b!=null?v>=b:null;const rc=m.recon&&m.recon[r[1]]!=null&&m.reconN?m.recon[r[1]]:null;return `<div class="metric"><span>${r[0]}${r[2]?` <span class="chip">${r[2]}</span>`:''}${rc!=null?`<br><span class="small muted">交易所对账后 ${pctS(rc)}（${m.reconN} 笔）</span>`:''}</span><span class="num muted">${b==null?'—':pctS(b)}</span><span class="num ${better==null?'':better?'go':'stop'}">${pctS(v)}</span><div class="bar">${v!=null?`<i style="width:${Math.round(v*100)}%;background:${better===false?'var(--stop)':'var(--go)'}"></i>`:''}${b!=null?`<u style="left:${Math.round(b*100)}%"></u>`:''}</div></div>`};
   const weeks={};all.filter(t=>t.close).forEach(t=>{const k=weekKey(t.close.t);(weeks[k]=weeks[k]||[]).push(t)});const wk=Object.keys(weeks).sort().slice(-8);
   const bars=wk.length?`<div class="weekbars">${wk.map(k=>{const x=metrics(weeks[k]);const v=x.allPass||0;return `<div><i style="height:${Math.max(2,Math.round(v*100))}%"></i><span>${k.slice(5)}</span><span class="mono">${pctS(v)}</span></div>`}).join('')}</div>`:'<p class="muted small">平仓并复盘几笔之后，这里会出现每周的守规则比例。</p>';
@@ -1046,7 +1116,7 @@ function metricsPack(){const all=realTrades();const cut=now()-30*DAY;const weeks
 function mdTrade(t){const L=[];const g=t.review&&t.review.grade?GRADE[t.review.grade][0]:'未复盘';
   L.push(`## #${t.no} ${t.symbol} ${t.side==='LONG'?'多':'空'} · ${t.status==='paper'?'纸面计划':t.close?fmtMoney(netPnl(t)):'持仓中'} · ${g}`);
   if(t.open)L.push(`- 开仓：${t.open.t!=null?bj(t.open.t).day+' '+bj(t.open.t).str.slice(6):'—'}，均价 ${t.open.price??'—'}，数量 ${t.open.qty??'—'}${t.open.leverage?`，交易所杠杆 ${t.open.leverage}`:''}，开仓即挂止损：${t.open.stopAtOpen===true?'是':t.open.stopAtOpen===false?'否':'—'}`);
-  if(t.plan)L.push(`- 计划：下单前检查 ${({pass:'做了，绿灯',skipped:'没做',paper:'只写计划'})[t.plan.gate]||'—'}；理由 ${trigLabel(t)}${t.plan.ifLosing?`；浮亏时打算 ${(IFLOSE.find(x=>x[0]===t.plan.ifLosing)||['',''])[1]}`:''}${t.plan.intendedQty?`；本来想开 ${t.plan.intendedQty}`:''}；入场 ${t.plan.entry??'—'} / 开仓止损 ${t.plan.stop0??t.plan.stop??'—'} / 目标 ${t.plan.target??'—'}；风险 ${t.plan.riskPct!=null?(t.plan.riskPct*100).toFixed(2)+'%':'—'}${t.plan.basis?`；依据：${t.plan.basis}`:''}${t.plan.invalid?`；作废条件：${t.plan.invalid}`:''}`);
+  if(t.plan)L.push(`- 计划：下单前检查 ${({pass:'做了，绿灯',skipped:'没做',paper:'只写计划'})[t.plan.gate]||'—'}；理由 ${trigLabel(t)}${t.plan.ifLosing?`；浮亏时打算 ${(IFLOSE.find(x=>x[0]===t.plan.ifLosing)||['',''])[1]}`:''}${t.plan.intendedQty?`；本来想开 ${t.plan.intendedQty}`:''}；入场 ${t.plan.entry??'—'} / 开仓止损 ${t.plan.stop0??t.plan.stop??'—'} / 目标 ${t.plan.target??'—'}；风险 ${t.plan.riskPct!=null?(t.plan.riskPct*100).toFixed(2)+'%':'—'}${t.plan.basis?`；依据：${t.plan.basis}`:''}${t.plan.kk?`；KK 清单：${t.plan.kk.ok?'合格':'不合格（'+(t.plan.kk.fails||[]).join('；')+'）'}`:''}${t.plan.rr!=null?`；目标倍数 ${t.plan.rr}`:''}${t.plan.invalid?`；作废条件：${t.plan.invalid}`:''}`);
   (t.events||[]).forEach(e=>L.push(`- 持仓中 ${bj(e.t).str}：${EVT[e.type]||e.type} ${e.type==='add'?`${e.price}×${e.qty}（浮盈 ${e.profitR??'—'}R）`:e.type==='stop'?`${e.prevStop??'无'}→${e.stop}（${DIRTXT[e.dir]||e.dir}）`:e.type==='reduce'?`${e.price??''}×${e.qty}`:''}${e.flag?` ⚠ ${VIOL[e.flag]||e.flag}`:''}`));
   if(t.close)L.push(`- 平仓：${bj(t.close.t).day+' '+bj(t.close.t).str.slice(6)}，价 ${t.close.price??'—'}，交易所盈亏 ${fmtMoney(t.close.pnl)}${t.close.fee!=null?`，手续费 ${t.close.fee}（盈亏里${({yes:'已扣',no:'没扣',unk:'不清楚是否扣了'})[t.close.feeIncl]||'—'}）`:''}，出场 ${exitText(t.close.exitType)}`);
   const reds=Object.keys(t.checks||{}).filter(k=>(t.checks||{})[k]===true);const fl=[t.afterLoss60?'亏损后 60 分钟内开':'',t.afterBigWin30?'大赚后 30 分钟内开':'',overnight(t)?'跨过凌晨':''].filter(Boolean);
@@ -1081,6 +1151,7 @@ const EXPORT_README=()=>`# 交易日志导出包
 - 时间都是毫秒时间戳（UTC）；\`computed.openBJ\` / \`closeBJ\` 是北京时间。
 - \`status\`：open 持仓中 / closed 待复盘 / reviewed 已复盘 / paper 纸面计划（不是真单）。
 - \`plan.gate\`：pass 做了下单前检查且绿灯 / skipped 没做检查直接下单 / paper 只写计划没下单。
+- \`plan.kk\`：结构依据（KK 清单）的点选结果。dir 日线方向 UP/DOWN/RANGE；tf 形态画在哪个级别 1d/12h/4h/low；pat 形态 range 水平区间 / rtri 直角三角 / stri 对称三角 / flag 旗形 / mw M顶W底 / hs 头肩 / hard 难形态 / none 看不出；touch 碰了几次 2/3/4/5（5 = 5 次以上）；pts、flat、norev、wickOk、noNews 是否满足（true = 满足）；fail 这条线以前失败几次 0/1/2；conf 突破确认 4h/12h/1d/intra（还没收线）/no（还没突破）；vol up/flat/low；stopAt candle（突破那根 K 线外）/other；tgtBy measure/pole/other；ok 是否全部合格，fails 不合格的原因。\`plan.rr\`：目标倍数（目标距离 ÷ 止损距离）。\`plan.note\`：补充说明。截图 kind 为 preDay / preTf 的是下单前的 K 线图。
 - \`plan.isPlan\`：依据是不是自己提前写好的结构计划；\`plan.triggers\`：开仓那一刻的情况（多选）：missed 刚错过/刚被打掉、regret 想回本、revisit 价格回到上一单位置、ext 刚看了直播群新闻、askGroup 刚去群里问、bored 无聊、toy 小仓玩一下或晒单、number 想让账户回到某个数。旧记录只有单选 \`plan.trigger\`。
 - \`plan.ifLosing\`（浮亏时打算：letStop/add/later）、\`plan.bePolicy\`（after1R/immediate）、\`plan.intendedQty\` 与 \`plan.intendRatio\`（本来想开的数量 ÷ 允许数量，衡量重仓冲动）。
 - \`urges\`：持仓中点“我想……”按钮的记录（忍住的冲动）。
@@ -1144,13 +1215,17 @@ const A={
   ans:b=>{APP.gate.ans[b.dataset.k]=b.dataset.v==='1';APP.gate.res=null;render()},
   gset:b=>{APP.gate[b.dataset.k]=b.dataset.v==='1';APP.gate.res=null;render()},
   gpick:b=>{APP.gate[b.dataset.k]=b.dataset.v;APP.gate.res=null;render()},
+  kpick:b=>{const k=APP.gate.k=APP.gate.k||{};k[b.dataset.k]=k[b.dataset.k]===b.dataset.v?null:b.dataset.v;APP.gate.res=null;render()},
+  kset:b=>{const k=APP.gate.k=APP.gate.k||{};k[b.dataset.k]=b.dataset.v==='1';APP.gate.res=null;render()},
+  gpickImg:()=>{const i=$('#gfileIn');if(i)i.click()},
+  grmShot:b=>{APP.gate.shots.splice(+b.dataset.i,1);APP.gate.res=null;render()},
   gtrig:b=>{const g=APP.gate,v=b.dataset.v;if(v==='none'){g.none=!g.none;if(g.none)g.trigs=[]}else{g.none=false;const i=g.trigs.indexOf(v);if(i>=0)g.trigs.splice(i,1);else g.trigs.push(v)}g.res=null;render()},
   gateCheck:()=>{const P=APP.P;if(APP.gate.trigs.includes('ext')&&!(P.externalSeenAt&&now()-P.externalSeenAt<30*MIN)){P.externalSeenAt=now();saveP()}APP.gate.res=gateEval(gateValues());render();setTimeout(()=>{const l=document.querySelector('.light');if(l)l.scrollIntoView({behavior:'smooth',block:'center'})},30)},
-  gateOpen:()=>{const r=gateEval(gateValues());APP.gate.res=r;if(r.block.length||r.cool.length){render();return}const v=gateValues(),P=APP.P;const q=num(gateForm().filled);if(!(q>0)){toast('请填实际成交了多少');return}P.seq=nextNo();noteEquity(v.equity);if(q>r.size.qty*1.05)toast(`比允许的 ${r.size.qty.toFixed(3)} 多开了，复盘时这一项算没做到`);
-    const t={id:newId(),no:P.seq,v:2,createdAt:now(),status:'open',symbol:v.symbol,side:v.side,plan:gatePlan(v,r,'pass'),open:{t:now(),price:v.entry,qty:q,price0:v.entry,qty0:q,stopAtOpen:true},shots:[],checks:{},events:[],urges:[]};
+  gateOpen:async()=>{if(APP.busy)return;const r=gateEval(gateValues());APP.gate.res=r;if(r.block.length||r.cool.length){render();return}const v=gateValues(),P=APP.P;const q=num(gateForm().filled);if(!(q>0)){toast('请填实际成交了多少');return}APP.busy=true;const tid=newId();let shots=[];try{shots=await uploadShots({shots:APP.gate.shots||[]},tid)}finally{APP.busy=false}P.seq=nextNo();noteEquity(v.equity);if(q>r.size.qty*1.05)toast(`比允许的 ${r.size.qty.toFixed(3)} 多开了，复盘时这一项算没做到`);
+    const t={id:tid,no:P.seq,v:2,createdAt:now(),status:'open',symbol:v.symbol,side:v.side,plan:gatePlan(v,r,'pass'),open:{t:now(),price:v.entry,qty:q,price0:v.entry,qty0:q,stopAtOpen:true},shots,checks:{},events:[],urges:[]};
     t.plan.riskAmt=Math.abs(v.entry-v.stop)*q;t.plan.riskPct=t.plan.riskAmt/v.equity;t.plan.lev=q*v.entry/v.equity;
     APP.T.unshift(t);deriveFlags(t);P.openId=t.id;P.dayTrades++;saveT(t);saveP();APP.gate=freshGate();APP.route='today';if(q<=r.size.qty*1.05)toast('已记下开仓。平仓后点“已平仓，记录结果”');render();window.scrollTo(0,0)},
-  paper:()=>{const v=gateValues(),P=APP.P;const r=gateEval(v);if(!r.size||!v.basis||!v.invalid){toast('计划没写完整：入场、止损、目标、u 数、依据、看错条件都要写');return}P.seq=nextNo();P.paperPlans++;noteEquity(v.equity);const t={id:newId(),no:P.seq,v:2,createdAt:now(),status:'paper',symbol:v.symbol,side:v.side,plan:Object.assign(gatePlan(v,r,'paper'),{wouldBlock:r.block.slice(0,12),wouldCool:r.cool.slice(0,6)}),checks:{}};APP.T.unshift(t);saveT(t);saveP();APP.gate=freshGate();toast(`已记下计划（第 ${P.paperPlans} 份，没有下单）`);APP.route='today';render()},
+  paper:async()=>{if(APP.busy)return;const v=gateValues(),P=APP.P;const r=gateEval(v);if(!r.size||!v.invalid){toast('计划没写完整：入场、止损、目标、u 数、看错条件都要写');return}if(r.kk&&r.kk.miss.length){toast('第 3 步结构依据（KK 清单）还没选完');return}APP.busy=true;const tid=newId();let shots=[];try{shots=await uploadShots({shots:APP.gate.shots||[]},tid)}finally{APP.busy=false}P.seq=nextNo();P.paperPlans++;noteEquity(v.equity);const t={id:tid,no:P.seq,v:2,createdAt:now(),status:'paper',symbol:v.symbol,side:v.side,plan:Object.assign(gatePlan(v,r,'paper'),{wouldBlock:r.block.slice(0,12),wouldCool:r.cool.slice(0,6)}),shots,checks:{}};APP.T.unshift(t);saveT(t);saveP();APP.gate=freshGate();toast(`已记下计划（第 ${P.paperPlans} 份，没有下单）`);APP.route='today';render()},
   wizFirst:()=>{const p=realTrades().filter(t=>t.status==='closed').sort((a,b)=>a.createdAt-b.createdAt)[0];if(p)startWizard(p)},
   wizStart:b=>{const t=APP.T.find(x=>x.id===b.dataset.id);if(t)startWizard(t)},
   wizNext:()=>{const m=wizMissing(APP.wiz);if(m){toast(m);return}APP.wiz.step=Math.min(5,APP.wiz.step+1);render();window.scrollTo(0,0)},
@@ -1219,6 +1294,7 @@ document.addEventListener('input',e=>{const el=e.target;
   if(el.dataset.wq){const k=APP.weekKey||weekKey(now());APP.W[k].answers[el.dataset.wq]=el.value}});
 document.addEventListener('change',e=>{const el=e.target;
   if(el.dataset.actChange==='kind'&&APP.draft){APP.draft.shots[+el.dataset.i].kind=el.value}
+  if(el.dataset.actChange==='gkind'&&APP.gate&&APP.gate.shots[+el.dataset.i]){APP.gate.shots[+el.dataset.i].kind=el.value}
   if(el.dataset.d&&APP.draft&&el.tagName==='SELECT'){APP.draft.f[el.dataset.d]=el.value}
   if(el.dataset.g){const f=gateForm();f[el.dataset.g]=el.type==='checkbox'?el.checked:el.value}});
 setInterval(()=>{if(APP.route==='today'&&!APP.detail&&document.visibilityState==='visible'&&!document.activeElement.matches('input,textarea,select'))render()},30000);
