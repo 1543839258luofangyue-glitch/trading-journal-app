@@ -624,6 +624,7 @@ async function saveDraft(){
   const openAt=!f.openAtEdited&&d.mode==='open'&&!d.tradeId?now():fromInput(f.openAt),closeAt=f.closeAtEdited?fromInput(f.closeAt):now();
   const t0=d.tradeId?APP.T.find(x=>x.id===d.tradeId):null;
   if(d.mode==='close'&&pnl==null){toast('平仓要填盈亏（亏损写负数）');return}
+  if(!t0&&!String(f.symbol||'').trim()){toast('请填品种名');return}
   if(!t0&&!(entry>0)){toast('请填开仓价');return}
   if(!t0&&f.isPlan==null){toast('请回答：依据是不是自己提前写好的计划');return}
   if(!t0&&!f.trigs.length&&!f.none){toast('请点选开仓那一刻的情况（没有就点“以上都不是”）');return}
@@ -832,6 +833,10 @@ function commitCard(){const P=APP.P;const cm=(P.commitments||[]).filter(c=>c&&c.
   return `<section class="card"><h3>我的承诺</h3>${cm.length?`<div class="promise"><ol>${cm.map(c=>`<li>${esc(c.text)}</li>`).join('')}</ol></div>`:'<p class="small muted">还没写。写下最多 3 条你自己愿意守的承诺，下单前检查时会先看到它们。</p>'}<button type="button" class="btn sec" data-act="cmEditOpen">${cm.length?'修改':'写承诺'}</button></section>`}
 function depForm(){const f=APP.depForm;
   return `<div class="evform"><h4>记录一次入金或转钱</h4><div class="fields"><label class="f">金额多少 u<input data-dep="amount" inputmode="decimal" value="${esc(f.amount||'')}"></label></div><p class="small stop">入金破了硬线 6：这轮练习结束，停 30 天。还是要如实记，隐瞒比入金更危险。</p><div class="btns full"><button type="button" class="btn" data-act="depSave">记下</button><button type="button" class="btn sec" data-act="depCancel">取消</button></div></div>`}
+const SYMS=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT','DOGEUSDT'];
+function symField(src,f,id,cls){const cur=f.symbol==='OTHER'?'':(f.symbol||'');const other=!!f.symOther||!SYMS.includes(cur);const attr=src==='g'?'data-g':'data-d';
+  return `<label class="f">品种<select id="${id}" class="${cls||''}" data-symsel="${src}">${SYMS.map(x=>`<option value="${x}" ${!other&&cur===x?'selected':''}>${x}</option>`).join('')}<option value="OTHER" ${other?'selected':''}>其他品种（自己填）</option></select></label>${other?`<label class="f">填品种名<input ${attr}="symbol" value="${esc(cur)}" placeholder="例如 HYPEUSDT" autocapitalize="characters" autocomplete="off"></label>`:''}${src==='g'&&cur!=='BTCUSDT'?`<p class="small stop wide">硬线 2：练习期只做 BTCUSDT，选别的品种会是红灯。</p>`:''}`}
+function stopPnl(t){const o=t.open||{},p=t.plan||{};const e=o.price,q=o.qty,st=p.stop;if(!(e>0&&q>0&&st>0))return null;return (st-e)*(t.side==='LONG'?1:-1)*q}
 function practiceCard(){const P=APP.P,t=now();const lock=P.lockUntil>t;
   return `<section class="card ${lock?'bad':''}">${lock?`<h3 class="stop">停到 ${bj(P.lockUntil).str}</h3><p class="small">${esc(P.lockReason||'破了一条硬线')}。这段时间不开仓；心情照常记。</p>`:''}<h3>6 条硬线（用账户里剩下的钱练，不入金）</h3><ol class="hl">${[1,2,3,4,5,6].map(n=>`<li>${esc(hlText(n))}</li>`).join('')}</ol><p class="small muted">破一条：停 7 天，连续守住的笔数清零。入金或转钱：这轮练习结束，停 30 天。主动承认的照样要停，但如实记下比隐瞒好得多。</p></section>`}
 const MOOD=[['1','很差'],['2','差'],['3','一般'],['4','好'],['5','很好']];
@@ -862,7 +867,7 @@ function feelForm(o){const f=feelDraft(o.id);const msg=APP.feelMsg&&APP.feelMsg.
   <label class="f">现在价格（选填）<input data-feel="price" data-id="${o.id}" inputmode="decimal" value="${esc(f.price)}" placeholder="例如 62350"></label>
   <button type="button" class="btn" data-act="feelSave" data-id="${o.id}">记下来</button>${msg?`<p class="okmsg">${esc(msg)}</p>`:''}</div>`}
 function holdingCard(o){const ev=timeline(o);const msg=APP.evMsg&&APP.evMsg.id===o.id?APP.evMsg.msgs:null;
-  return `<section class="card warn"><h3>持仓中 · #${o.no} ${esc(o.symbol)} ${o.side==='LONG'?'多':'空'}</h3><p class="small muted">开仓 ${o.open&&o.open.t!=null?bj(o.open.t).str:'—'} · 均价 ${o.open.price??'—'} · 数量 ${o.open.qty??'—'} · 止损 ${o.plan&&o.plan.stop!=null?o.plan.stop:'<b class="stop">没有</b>'}${o.plan&&o.plan.riskAmt?` · 开仓时最多亏 ${o.plan.riskAmt.toFixed(2)}`:''}</p>
+  return `<section class="card warn"><h3>持仓中 · #${o.no} ${esc(o.symbol)} ${o.side==='LONG'?'多':'空'}</h3><p class="small muted">开仓 ${o.open&&o.open.t!=null?bj(o.open.t).str:'—'} · 均价 ${o.open.price??'—'} · 数量 ${o.open.qty??'—'} · 止损 ${o.plan&&o.plan.stop!=null?o.plan.stop:'<b class="stop">没有</b>'}${(()=>{const v=stopPnl(o);return v==null?'':v<0?` · 打到止损会亏 <b class="stop">${(-v).toFixed(2)} u</b>（不含手续费）`:` · 打到止损还能保住 ${v.toFixed(2)} u`})()}</p>
   ${feelForm(o)}
   <h4>想做下面这些之前，先点一下（会记下来，算你忍住了一次）</h4><div class="panic">${PANIC.map((p,i)=>`<button type="button" data-act="panic" data-id="${o.id}" data-i="${i}">${p[1]}</button>`).join('')}</div>${APP.panicMsg&&APP.panicMsg.id===o.id?`<p class="stopmsg">${esc(APP.panicMsg.text)}</p>`:''}${(o.urges||[]).length?`<p class="small muted">这笔已经忍住 ${o.urges.length} 次冲动。</p>`:''}
   <h4>已经做了？马上如实记下（页面自动判断有没有违规）</h4><div class="seg">${Object.entries(EVT).map(([k,l])=>`<button type="button" data-act="evOpen" data-v="${k}" data-id="${o.id}" aria-pressed="${!!(APP.ev&&APP.ev.id===o.id&&APP.ev.type===k)}">${l}</button>`).join('')}</div>
@@ -883,7 +888,7 @@ function viewGate(){if(!APP.gate)APP.gate=freshGate();const g=APP.gate,f=gateFor
    <div class="f">此刻有没有下面这些情况？有就点（可多选）<div class="seg">${TRIG.map(x=>`<button type="button" class="n" data-act="gtrig" data-v="${x[0]}" aria-pressed="${g.trigs.includes(x[0])}">${x[1]}</button>`).join('')}<button type="button" class="y" data-act="gtrig" data-v="none" aria-pressed="${g.none}">没有，以上都不是</button></div></div></section>
   ${kkSection(g)}
   <section class="card"><h3>4 · 写下计划</h3><div class="fields">
-   <label class="f">品种<select id="g_symbol" data-g="symbol"><option value="BTCUSDT" ${f.symbol==='BTCUSDT'?'selected':''}>BTCUSDT</option><option value="OTHER" ${f.symbol!=='BTCUSDT'?'selected':''}>其他品种</option></select></label>
+   ${symField('g',f,'g_symbol')}
    <label class="f">方向<select id="g_side" data-g="side"><option value="SHORT" ${f.side==='SHORT'?'selected':''}>空</option><option value="LONG" ${f.side==='LONG'?'selected':''}>多</option></select></label>
    <label class="f">入场价<input id="g_entry" data-g="entry" inputmode="decimal" value="${esc(f.entry)}" placeholder="例如 62000"></label>
    <label class="f">止损价<input id="g_stop" data-g="stop" inputmode="decimal" value="${esc(f.stop)}" placeholder="例如 62600"></label>
@@ -912,7 +917,7 @@ function kkSection(g){const k=g.k||(g.k={});const shots=g.shots||[];
   <input type="file" id="gfileIn" accept="image/*" multiple hidden>
   ${shots.length?`<div class="thumbs">${shots.map((s,i)=>`<div class="thumb"><img src="${s.tmp}" alt="下单前截图 ${i+1}"><select data-act-change="gkind" data-i="${i}" aria-label="截图类型"><option value="preDay" ${s.kind==='preDay'?'selected':''}>${KIND.preDay}</option><option value="preTf" ${s.kind==='preTf'?'selected':''}>${KIND.preTf}</option></select><button type="button" data-act="grmShot" data-i="${i}">移除</button></div>`).join('')}</div>`:''}
   </section>`}
-function gateValues(){const f=gateForm();return {symbol:f.symbol,side:f.side,entry:num(f.entry),stop:num(f.stop),target:num(f.target),equity:num(f.equity),basis:[kkSummary((APP.gate||{}).k),(f.basis||'').trim()].filter(Boolean).join('；'),note:(f.basis||'').trim(),invalid:(f.invalid||'').trim(),intended:num(f.intended),preplan:!!f.preplan}}
+function gateValues(){const f=gateForm();return {symbol:String(f.symbol==='OTHER'?'':f.symbol||'').trim().toUpperCase(),side:f.side,entry:num(f.entry),stop:num(f.stop),target:num(f.target),equity:num(f.equity),basis:[kkSummary((APP.gate||{}).k),(f.basis||'').trim()].filter(Boolean).join('；'),note:(f.basis||'').trim(),invalid:(f.invalid||'').trim(),intended:num(f.intended),preplan:!!f.preplan}}
 function gatePlan(v,r,gate){const g=APP.gate;return {gate,isPlan:g.isPlan,triggers:g.trigs.slice(),trigger:g.trigs.length?g.trigs[0]:(g.isPlan===true?'plan':null),state:clone(g.ans),ifLosing:g.ifLose,bePolicy:g.bePol,levOk:g.levOk,entry:v.entry,stop:v.stop,stop0:v.stop,target:v.target,equity:v.equity,
   riskPct:r&&r.size?r.size.riskPct:null,riskAmt:r&&r.size?r.size.riskAmt:null,qtyMax:r&&r.size?r.size.qty:null,lev:r&&r.size?r.size.lev:null,intendedQty:v.intended,intendRatio:r&&r.size&&r.size.intendRatio?+r.size.intendRatio.toFixed(2):null,basis:v.basis,invalid:v.invalid,note:v.note||null,kk:Object.assign({v:1},clone(g.k||{}),{ok:r&&r.kk?r.kk.ok:null,fails:r&&r.kk?r.kk.block.slice(0,12):[]}),rr:r&&r.size&&r.size.rr!=null?+r.size.rr.toFixed(2):null,riskU:APP.P.riskU||1}}
 
@@ -938,7 +943,7 @@ function viewCapture(){const d=APP.draft||(APP.draft=blankDraft());const f=d.f;c
 </section>
   ${d.mode==='note'?`<section class="card"><label class="f wide">一句话备注（可不填）<input id="c_note" data-d="note" value="${esc(f.note)}"></label><div class="btns full"><button type="button" class="btn" data-act="saveDraft" ${APP.busy?'disabled':''}>${APP.busy?'正在保存…':'保存截图'}</button><button type="button" class="btn sec" data-act="cancelDraft">清空</button></div></section>`:`
   <section class="card"><h3>核对数字</h3><div class="fields">
-   <label class="f">品种<input id="c_symbol" class="${ai('symbol')}" data-d="symbol" value="${esc(f.symbol)}"></label>
+   ${symField('d',f,'c_symbol',ai('symbol'))}
    <label class="f">方向<select id="c_side" class="${ai('side')}" data-d="side"><option value="SHORT" ${f.side==='SHORT'?'selected':''}>空</option><option value="LONG" ${f.side==='LONG'?'selected':''}>多</option></select></label>
    <label class="f">开仓时间（北京时间）<input id="c_openAt" type="datetime-local" class="${ai('openAt')}" data-d="openAt" value="${esc(f.openAt)}"></label>
    <label class="f">开仓前合约账户有多少 u<input id="c_equity" data-d="equity" inputmode="decimal" value="${esc(f.equity)}" placeholder="合约账户总权益"></label>
@@ -1370,6 +1375,7 @@ document.addEventListener('input',e=>{const el=e.target;
 document.addEventListener('change',e=>{const el=e.target;
   if(el.dataset.actChange==='kind'&&APP.draft){APP.draft.shots[+el.dataset.i].kind=el.value}
   if(el.dataset.actChange==='gkind'&&APP.gate&&APP.gate.shots[+el.dataset.i]){APP.gate.shots[+el.dataset.i].kind=el.value}
+  if(el.dataset.symsel){const f=el.dataset.symsel==='g'?gateForm():(APP.draft&&APP.draft.f);if(f){if(el.value==='OTHER'){f.symOther=true;if(SYMS.includes(f.symbol)||f.symbol==='OTHER')f.symbol=''}else{f.symOther=false;f.symbol=el.value}if(APP.draft&&APP.draft.aiFilled)delete APP.draft.aiFilled.symbol;render()}}
   if(el.dataset.d&&APP.draft&&el.tagName==='SELECT'){APP.draft.f[el.dataset.d]=el.value}
   if(el.dataset.g){const f=gateForm();f[el.dataset.g]=el.type==='checkbox'?el.checked:el.value}});
 setInterval(()=>{if(APP.route==='today'&&!APP.detail&&document.visibilityState==='visible'&&!document.activeElement.matches('input,textarea,select'))render()},30000);
