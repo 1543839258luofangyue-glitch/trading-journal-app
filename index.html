@@ -164,6 +164,9 @@ h4{font-size:14px;margin:4px 0 0;font-weight:700}
 .ftimgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.ftimgs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:var(--soft);cursor:zoom-in}
 .zoom{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:12px;cursor:zoom-out}.zoom img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
 .pickbtn{justify-self:start}
+.subhead{display:flex;align-items:center;gap:12px}.subhead h2{margin:0;font-size:22px}.subhead p{margin:2px 0 0}.subhead .btn{flex:none;min-height:40px;padding:8px 12px}
+.big button.alert{border-color:var(--wait);background:var(--wait-soft)}.big button.danger{border-color:var(--stop);background:var(--stop-soft)}
+.tbadge{display:inline-block;font-style:normal;font-family:var(--body,inherit);font-size:12px;font-weight:700;background:var(--wait);color:var(--paper);border-radius:999px;padding:0 7px;margin-left:6px;vertical-align:3px;line-height:1.6}
 .rrlive{margin:0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--soft);font-size:14.5px}.rrlive.go{background:var(--go-soft);border-color:var(--go);color:var(--ink)}.rrlive.stop{background:var(--stop-soft);border-color:var(--stop);color:var(--ink)}.rrlive.muted{color:var(--muted)}
 .ev{display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
 .okmsg{border-radius:12px;background:var(--go-soft);color:var(--go);padding:10px 14px;font-size:14.5px}
@@ -434,7 +437,7 @@ async function boot(){
   await loadFromCache();
   APP.mode='ready';
   const h=(location.hash||'').slice(1);
-  if(!cfgOk()&&!lsGet('tj_setup_seen',false))APP.route='setup';else if(['today','capture','review','progress','ai'].includes(h))APP.route=h;
+  if(!cfgOk()&&!lsGet('tj_setup_seen',false))APP.route='setup';else if(['today','capture','review','progress','ai','hold','mood','rules','records'].includes(h))APP.route=h;
   render();updatePill();
   if(cfgOk()){const ch=await pull();if(ch)render()}migratePractice();if(cfgOk())await flush()
 }
@@ -789,19 +792,51 @@ function lessonHints(t,w){const h=[];const c=wizChecks(t,w);
 /* ================= 视图 ================= */
 const ICON={today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z"/></svg>',capture:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>',review:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h11l3 3v13H5z"/><path d="M8 11h8M8 15h5"/></svg>',progress:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',ai:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>'};
 function tabs(){const pend=realTrades().filter(t=>t.status==='closed').length;const T=[['today','今天'],['capture','记一笔'],['review','复盘'],['progress','进步'],['ai','AI 监督']];
-  $('#tabs').innerHTML=T.map(x=>`<button type="button" data-act="tab" data-v="${x[0]}" ${APP.route===x[0]?'aria-current="page"':''}>${ICON[x[0]]}<span>${x[1]}${x[0]==='review'&&pend?`<span class="badge">${pend}</span>`:''}</span></button>`).join('')}
+  const cur=['hold','mood','rules','records','gate','week'].includes(APP.route)?'today':APP.route;$('#tabs').innerHTML=T.map(x=>`<button type="button" data-act="tab" data-v="${x[0]}" ${cur===x[0]?'aria-current="page"':''}>${ICON[x[0]]}<span>${x[1]}${x[0]==='review'&&pend?`<span class="badge">${pend}</span>`:''}</span></button>`).join('')}
 function render(){tabs();const v=$('#view');
   if(APP.mode==='loading'){v.innerHTML=`<section class="card"><h2>正在读取你的记录</h2><p class="muted">先读这台设备上存的，再去 GitHub 取别的设备记的。</p></section>`;return}
   if(APP.detail){v.innerHTML=viewDetail(APP.detail);hydrate();return}
-  v.innerHTML=({today:viewToday,capture:viewCapture,review:viewReview,progress:viewProgress,ai:viewAI,gate:viewGate,week:viewWeek,setup:viewSetup}[APP.route]||viewToday)();
+  v.innerHTML=({today:viewToday,capture:viewCapture,review:viewReview,progress:viewProgress,ai:viewAI,gate:viewGate,week:viewWeek,setup:viewSetup,hold:viewHold,mood:viewMood,rules:viewRules,records:viewRecords}[APP.route]||viewToday)();
   hydrate();updatePill();
   if(APP.route==='capture')bindDrop();
   if(APP.route==='gate')bindGateDrop();
 }
 function statusStrip(){rollDay();const P=APP.P,t=now();const lock=P.lockUntil>t;
-  return `<div class="stats"><div>每笔最多亏<b>${P.riskU||1} u</b></div><div>连续守住<b>${P.cleanCount||0} / 30 笔</b></div><div>今天<b>${P.dayTrades} / 2 笔${P.dayStopped?' · 已停':''}</b></div><div>7 天破线<b>${recentViol().length} 次</b></div><div>停到<b>${lock?bj(P.lockUntil).str:'没停'}</b></div></div>`}
+  return `<div class="stats"><div>每笔最多亏<b>${P.riskU||1} u</b></div><div>连续守住<b>${P.cleanCount||0} / 30 笔</b></div><div>今天<b>${P.dayTrades} / 2 笔${P.dayStopped?' · 已停':''}</b></div><div>7 天破线<b>${recentViol().length} 次</b></div></div>`}
 function tradeRow(t){const st={open:['持仓中','amb'],closed:['待复盘','amb'],reviewed:['已复盘','grn'],paper:['纸面计划','blu']}[t.status]||['','',''];const g=t.review&&t.review.grade?GRADE[t.review.grade]:null;
   return `<button type="button" class="item" data-act="open" data-id="${t.id}"><span class="no">#${t.no||'—'}</span><span class="t"><b>${esc(t.symbol)} ${t.side==='LONG'?'多':'空'} <span class="chip ${st[1]}">${st[0]}</span>${g?` <span class="chip ${t.review.grade[0]==='G'?'grn':'red'}">${g[0]}</span>`:''}</b><span>${bj(t.open?t.open.t:t.createdAt).str}${t.plan&&t.plan.gate==='skipped'?' · 没做下单前检查':''}${t.status!=='paper'&&!inPractice(t)?' · 练习开始前':''}</span></span><span class="v ${t.close?(netPnl(t)<0?'stop':'go'):''}">${t.close?rS(rOf(t)):''}</span></button>`}
+function homeTiles(){const P=APP.P,tn=now();const opens=openTrades();const pend=realTrades().filter(t=>t.status==='closed');const wk=weekKey(tn);
+  const lock=P.lockUntil>tn;const dk=todayKey();const es=(APP.D[dk]&&APP.D[dk].entries)||[];const last=es[es.length-1];
+  const short=t=>`#${t.no} ${esc(String(t.symbol).replace(/USDT$/,''))} ${t.side==='LONG'?'多':'空'}${(()=>{const v=stopPnl(t);return v==null?' · 没有止损':v<0?` · 打到止损亏 ${(-v).toFixed(2)} u`:' · 止损已过成本'})()}`;
+  const gateSub=lock?`<span class="stop">停到 ${bj(P.lockUntil).str}，现在不能开</span>`:P.dayStopped?'今天已经停了，明天再说':opens.length?'已有持仓，先处理手上这一单':'下单前过一遍，自动算盈亏比和能开多少';
+  const tile=(act,v,title,sub,cls,badge)=>`<button type="button" class="${cls||''}" data-act="${act}"${v?` data-v="${v}"`:''}><b>${title}${badge?`<i class="tbadge">${badge}</i>`:''}</b><span>${sub}</span></button>`;
+  return `<div class="big">
+  ${tile('tab','gate','下单前检查',gateSub,'primary')}
+  ${tile('tab','hold','持仓中',opens.length?opens.slice(0,2).map(short).join('<br>'):'现在没有持仓',opens.length?'alert':'',opens.length||'')}
+  ${tile('newCapture','','记一笔','放截图、填几个数字，1 分钟')}
+  ${tile('tab','mood','今天的心情',es.length?`今天记了 ${es.length} 次 · 最近 ${bj(last.t).str.slice(6)}${last.mood?' 心情'+(MOOD.find(x=>x[0]===last.mood)||['',''])[1]:''}`:'今天还没记，记一下现在的状态',es.length?'':'alert')}
+  ${tile('tab','review','复盘',pend.length?`${pend.length} 笔待复盘 · 每笔 2 分钟`:'每笔 2 分钟，一屏一个问题',pend.length?'alert':'',pend.length||'')}
+  ${tile('week',wk,'本周复盘','先自己写 3 行，再生成给他看的一页')}
+  ${tile('tab','rules','6 条硬线和承诺',lock?`<span class="stop">${esc(P.lockReason||'破了一条硬线')}</span>`:'规则、我的承诺；主动承认和入金也在这里记',lock?'danger':'')}
+  ${tile('tab','records','全部记录',APP.T.length?`共 ${APP.T.length} 笔${pend.length?` · ${pend.length} 笔待复盘`:''}`:'还没有记录')}
+  </div>`}
+const subHead=(title,sub)=>`<div class="subhead"><button type="button" class="btn sec" data-act="tab" data-v="today">‹ 今天</button><div><h2>${title}</h2>${sub?`<p class="small muted">${sub}</p>`:''}</div></div>`;
+function viewHold(){const opens=openTrades();let h=subHead('持仓中',opens.length?'记感受、放图片、点“我想……”、如实记下加减仓和改止损，平仓后点最下面的按钮':'');
+  if(!opens.length)return h+`<section class="card"><p class="muted">现在没有持仓。下单前检查绿灯后点“已下单”，或者用“记一笔”记下开仓，这里就会出现。</p></section>`;
+  let cur=opens.find(t=>t.id===APP.holdId)||opens[0];APP.holdId=cur.id;
+  if(opens.length>1)h+=`<section class="card bad"><p class="small">现在有 ${opens.length} 笔持仓（硬线 2：同时只开一个）。每一笔都照常如实记录，点下面切换。</p><div class="seg">${opens.map(t=>`<button type="button" data-act="holdPick" data-id="${t.id}" aria-pressed="${t.id===cur.id}">#${t.no} ${esc(t.symbol)} ${t.side==='LONG'?'多':'空'}</button>`).join('')}</div></section>`;
+  return h+holdingCard(cur)}
+function viewMood(){const tn=now();const ks=Object.keys(APP.D).sort().reverse();const recent=ks.flatMap(k=>(APP.D[k].entries||[]).slice().reverse().map(e=>({k,e}))).slice(0,15);
+  return subHead('今天的心情','一天几次都行，没交易的日子也记')+moodCard()+
+  `<section class="card"><h3>刚看了直播或群消息？</h3><p class="small muted">点一下，30 分钟内下单前检查会提醒你先等等。</p><button type="button" class="btn sec" data-act="extSeen">我刚看了直播 / 群消息</button>${APP.P.externalSeenAt&&tn-APP.P.externalSeenAt<30*MIN?`<p class="small wait">还剩 ${Math.ceil((APP.P.externalSeenAt+30*MIN-tn)/MIN)} 分钟。</p>`:''}</section>`+
+  `<section class="card"><h3>最近记的</h3>${recent.length?`<div class="evs">${recent.map(({k,e})=>`<div class="ev feel"><span class="mono small muted">${k.slice(5)} ${bj(e.t).str.slice(6)}</span><span class="small">${esc(moodText(e))}</span><span></span></div>`).join('')}</div>`:'<p class="muted small">还没有记录。</p>'}<p class="small muted">每周的心情统计在“进步”页。</p></section>`}
+function viewRules(){const P=APP.P;let h=subHead('6 条硬线和承诺','')+practiceCard();
+  if(canStepUp())h+=`<section class="card good"><h3>连续守住 30 笔了</h3><p class="small">先和你信任的那个人看过记录、商量好，再决定要不要把每笔最多亏从 ${P.riskU||1} u 加到 ${(P.riskU||1)+1} u。按守住的笔数加，不按赚了多少加。不加也完全可以。</p><button type="button" class="btn sec" data-act="stepUp">已经和他商量好，改成 ${(P.riskU||1)+1} u</button></section>`;
+  h+=commitCard();
+  h+=`<section class="card"><h3>如实记下</h3><p class="small muted">主动承认照样要停，但比隐瞒好得多。</p><div class="btns"><button type="button" class="btn sec" data-act="selfViol">主动承认一次违规</button><button type="button" class="btn sec" data-act="depOpen">记录一次入金（破硬线 6）</button></div>${APP.depForm?depForm():''}</section>`;
+  return h}
+function viewRecords(){const list=APP.T.slice(0,APP.recN||30);
+  return subHead('全部记录',APP.T.length?`共 ${APP.T.length} 笔，最新的在上面`:'')+`<section class="card">${list.length?`<div class="list">${list.map(tradeRow).join('')}</div>${APP.T.length>list.length?`<button type="button" class="btn sec" data-act="recMore">再显示 30 笔</button>`:''}`:`<div class="empty"><p class="muted">还没有记录。下单前点“下单前检查”，或者平仓后点“记一笔”放一张截图，第一条就有了。</p></div>`}</section>`}
 function viewToday(){
   const o=openTrade();const pend=realTrades().filter(t=>t.status==='closed');const wk=weekKey(now());
   let h='';
@@ -812,17 +847,9 @@ function viewToday(){
   h+=statusStrip();
   if(P.externalSeenAt&&tn-P.externalSeenAt<30*MIN)h+=`<section class="card warn"><h3>刚看了直播或群消息</h3><p class="small">${Math.ceil((P.externalSeenAt+30*MIN-tn)/MIN)} 分钟内不下单、不改单。因为这些消息想做的品种，今天不碰。</p></section>`;
   const lc=P.lastClose;if(lc&&lc.t&&tn-lc.t<2*H&&!o)h+=`<section class="card warn"><h3>平仓后 2 小时：不看 ${esc(lc.sym)}</h3><p class="small">还剩 ${Math.ceil((lc.t+2*H-tn)/MIN)} 分钟。关掉图表，也不算“本来能赚多少”。想算的话写进这笔的复盘里，不能据此开单。</p></section>`;
-  h+=practiceCard();
-  const opens=openTrades();
-  if(opens.length>1)h+=`<section class="card bad"><p class="small">现在有 ${opens.length} 笔持仓（规则：同时只持一个）。每一笔都照常如实记录，下面每笔都有自己的卡片。</p></section>`;
-  opens.forEach(x=>{h+=holdingCard(x)});
-  h+=moodCard();
-  h+=`<div class="big"><button type="button" class="primary" data-act="tab" data-v="gate"><b>下单前检查</b><span>下单前过一遍，告诉你最多能开多少</span></button><button type="button" data-act="newCapture"><b>记一笔</b><span>放截图、填几个数字，1 分钟</span></button><button type="button" data-act="tab" data-v="review"><b>复盘${pend.length?` · ${pend.length} 笔待做`:''}</b><span>每笔 2 分钟，一屏一个问题</span></button><button type="button" data-act="week" data-v="${wk}"><b>本周复盘</b><span>每周先自己写 3 行，再生成给他看的一页</span></button></div>`;
-  const list=APP.T.slice(0,8);
-  h+=`<section class="card"><h3>最近记录</h3>${list.length?`<div class="list">${list.map(tradeRow).join('')}</div>`:`<div class="empty"><p class="muted">还没有记录。下单前点“下单前检查”，或者平仓后点“记一笔”放一张截图，第一条就有了。</p></div>`}</section>`;
-  if(canStepUp())h+=`<section class="card good"><h3>连续守住 30 笔了</h3><p class="small">先和你信任的那个人看过记录、商量好，再决定要不要把每笔最多亏从 ${P.riskU||1} u 加到 ${(P.riskU||1)+1} u。按守住的笔数加，不按赚了多少加。不加也完全可以。</p><button type="button" class="btn sec" data-act="stepUp">已经和他商量好，改成 ${(P.riskU||1)+1} u</button></section>`;
-  h+=commitCard();
-  h+=`<section class="card"><h3>其他记录</h3><div class="btns"><button type="button" class="btn sec" data-act="extSeen">我刚看了直播 / 群消息</button><button type="button" class="btn sec" data-act="depOpen">记录一次入金（破硬线 6）</button><button type="button" class="btn sec" data-act="selfViol">主动承认一次违规</button></div>${APP.depForm?depForm():''}</section>`;
+  if(P.lockUntil>tn)h+=`<section class="card bad"><h3 class="stop">停到 ${bj(P.lockUntil).str}</h3><p class="small">${esc(P.lockReason||'破了一条硬线')}。这段时间不开仓；心情照常记。</p></section>`;
+  if(canStepUp())h+=`<section class="card good"><h3>连续守住 30 笔了</h3><p class="small">先和你信任的那个人看过记录、商量好，再决定要不要加额度。详情在“6 条硬线和承诺”里。</p></section>`;
+  h+=homeTiles();
   return h;
 }
 function evLine(e){const dirTxt={tighten:'收紧',widen:'往外挪',same:'没变',set:'挂上'}[e.dir]||'';
@@ -1000,7 +1027,7 @@ function bindDrop(){const z=$('#drop'),inp=$('#fileIn');if(!z)return;
   ['dragenter','dragover'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.add('over')}));
   ['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.remove('over')}));
   z.addEventListener('drop',e=>{if(e.dataTransfer&&e.dataTransfer.files.length)addFiles(e.dataTransfer.files)})}
-document.addEventListener('paste',e=>{if(!APP.detail&&APP.route==='today'){const fs=[...(e.clipboardData?e.clipboardData.files:[])];if(!fs.length)return;const a=document.activeElement;const box=a&&a.closest?a.closest('[data-feelbox]'):null;const opens=APP.T.filter(t=>t.status==='open');const id=box?box.dataset.feelbox:(opens.length===1?opens[0].id:null);if(id){e.preventDefault();addFeelFiles(id,fs)}return}
+document.addEventListener('paste',e=>{if(!APP.detail&&APP.route==='hold'){const fs=[...(e.clipboardData?e.clipboardData.files:[])];if(!fs.length)return;const a=document.activeElement;const box=a&&a.closest?a.closest('[data-feelbox]'):null;const opens=APP.T.filter(t=>t.status==='open');const id=box?box.dataset.feelbox:(opens.length===1?opens[0].id:null);if(id){e.preventDefault();addFeelFiles(id,fs)}return}
   if(APP.detail||(APP.route!=='capture'&&APP.route!=='gate'))return;const fs=[...(e.clipboardData?e.clipboardData.files:[])];if(fs.length){e.preventDefault();(APP.route==='gate'?addGateFiles:addFiles)(fs)}});
 
 /* ---------- 复盘 ---------- */
@@ -1281,7 +1308,9 @@ function loadJSZip(){return new Promise((res,rej)=>{if(window.JSZip)return res()
 function toggle(a,v){const i=a.indexOf(v);if(i>=0)a.splice(i,1);else a.push(v)}
 function exclusiveToggle(o,k,v){const a=o[k];if(v==='none'){o[k]=a.includes('none')?[]:['none']}else{o[k]=a.filter(x=>x!=='none');toggle(o[k],v)}}
 const A={
-  tab:b=>{APP.detail=null;APP.copyFallback=null;APP.route=b.dataset.v;if(APP.route==='gate'&&!APP.gate)APP.gate=freshGate();if(APP.route!=='review')APP.wiz=null;try{if(['today','capture','review','progress','ai'].includes(APP.route))history.replaceState(null,'','#'+APP.route);if(APP.route==='ai'&&cfgOk()&&!APP.report){APP.report=lsGet('tj_report',null);if(!APP.report)loadReport()}}catch(e){}render();window.scrollTo(0,0)},
+  tab:b=>{APP.detail=null;APP.copyFallback=null;APP.route=b.dataset.v;if(APP.route==='gate'&&!APP.gate)APP.gate=freshGate();if(APP.route!=='review')APP.wiz=null;try{if(['today','capture','review','progress','ai','hold','mood','rules','records'].includes(APP.route))history.replaceState(null,'','#'+APP.route);if(APP.route==='ai'&&cfgOk()&&!APP.report){APP.report=lsGet('tj_report',null);if(!APP.report)loadReport()}}catch(e){}render();window.scrollTo(0,0)},
+  holdPick:b=>{APP.holdId=b.dataset.id;APP.ev=null;render();window.scrollTo(0,0)},
+  recMore:()=>{APP.recN=(APP.recN||30)+30;render()},
   newCapture:()=>{APP.draft=blankDraft();APP.route='capture';render()},
   open:b=>{APP.detail=b.dataset.id;APP.confirmDel=null;render();window.scrollTo(0,0)},
   back:()=>{APP.detail=null;render()},
@@ -1326,7 +1355,7 @@ const A={
   gateOpen:async()=>{if(APP.busy)return;const r=gateEval(gateValues());APP.gate.res=r;if(r.block.length||r.cool.length){render();return}const v=gateValues(),P=APP.P;const q=num(gateForm().filled);if(!(q>0)){toast('请填实际成交了多少');return}APP.busy=true;const tid=newId();let shots=[];try{shots=await uploadShots({shots:APP.gate.shots||[]},tid)}finally{APP.busy=false}P.seq=nextNo();noteEquity(v.equity);if(q>r.size.qty*1.05)toast(`比允许的 ${r.size.qty.toFixed(3)} 多开了，复盘时这一项算没做到`);
     const t={id:tid,no:P.seq,v:2,createdAt:now(),status:'open',symbol:v.symbol,side:v.side,plan:gatePlan(v,r,'pass'),open:{t:now(),price:v.entry,qty:q,price0:v.entry,qty0:q,stopAtOpen:true},shots,checks:{},events:[],urges:[]};
     t.plan.riskAmt=Math.abs(v.entry-v.stop)*q;t.plan.riskPct=t.plan.riskAmt/v.equity;t.plan.lev=q*v.entry/v.equity;t.plan.riskU=P.riskU||1;
-    APP.T.unshift(t);deriveFlags(t);P.openId=t.id;P.dayTrades++;const ob=openBreaches(t);ob.forEach(k=>addViolation(k,t.id,true));saveT(t);saveP();APP.gate=freshGate();APP.route='today';toast(ob.length?'已记下开仓。'+ob.map(k=>VIOL[k]).join('、')+'：破了硬线，已记违规、停 7 天':'已记下开仓。平仓后点“已平仓，记录结果”');render();window.scrollTo(0,0)},
+    APP.T.unshift(t);deriveFlags(t);P.openId=t.id;P.dayTrades++;const ob=openBreaches(t);ob.forEach(k=>addViolation(k,t.id,true));saveT(t);saveP();APP.gate=freshGate();APP.route='hold';APP.holdId=t.id;toast(ob.length?'已记下开仓。'+ob.map(k=>VIOL[k]).join('、')+'：破了硬线，已记违规、停 7 天':'已记下开仓。平仓后点“已平仓，记录结果”');render();window.scrollTo(0,0)},
   paper:async()=>{if(APP.busy)return;const v=gateValues(),P=APP.P;const r=gateEval(v);if(!r.size||!v.invalid){toast('计划没写完整：入场、止损、目标、u 数、看错条件都要写');return}APP.busy=true;const tid=newId();let shots=[];try{shots=await uploadShots({shots:APP.gate.shots||[]},tid)}finally{APP.busy=false}P.seq=nextNo();P.paperPlans++;noteEquity(v.equity);const t={id:tid,no:P.seq,v:2,createdAt:now(),status:'paper',symbol:v.symbol,side:v.side,plan:Object.assign(gatePlan(v,r,'paper'),{wouldBlock:r.block.slice(0,12),wouldCool:r.cool.slice(0,6)}),shots,checks:{}};APP.T.unshift(t);saveT(t);saveP();APP.gate=freshGate();toast(`已记下计划（第 ${P.paperPlans} 份，没有下单）`);APP.route='today';render()},
   wizFirst:()=>{const p=realTrades().filter(t=>t.status==='closed').sort((a,b)=>a.createdAt-b.createdAt)[0];if(p)startWizard(p)},
   wizStart:b=>{const t=APP.T.find(x=>x.id===b.dataset.id);if(t)startWizard(t)},
