@@ -164,6 +164,7 @@ h4{font-size:14px;margin:4px 0 0;font-weight:700}
 .ftimgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.ftimgs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:var(--soft);cursor:zoom-in}
 .zoom{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:12px;cursor:zoom-out}.zoom img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
 .pickbtn{justify-self:start}
+.fantbox{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:10px;background:var(--bg)}
 .hlpick{display:grid;gap:8px}.hlpick button{font:inherit;text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:10px 12px;display:grid;gap:2px;cursor:pointer}.hlpick button span{font-size:13px;color:var(--muted)}.hlpick button[aria-pressed="true"]{border-color:var(--ink);background:var(--paper);box-shadow:inset 0 0 0 1px var(--ink)}
 input,textarea,select,.f select,.f textarea,.thumb select{font-size:16px}
 textarea.grow{min-height:110px;overflow:hidden;resize:none;line-height:1.6}
@@ -231,7 +232,7 @@ const PROFILE_SUMMARY='这位交易者 2021 年起长期亏损，更早在 2016 
 const RULES_TEXT='6 条硬线：1 每笔最多亏固定额度（现在 1 u，赚了也不加），开仓同时挂止损；2 只做 BTCUSDT，同时只开一个仓，交易所杠杆 3 倍以下、逐仓；3 不加仓，止损只能收紧，不挪远、不撤；4 北京时间 00–08 点不开仓；5 一天最多 2 笔，亏一笔当天停；6 不入金、不往交易账户转钱。破一条停 7 天、连续守住的笔数清零；入金或转钱，这轮练习结束、停 30 天。连续 30 笔守住，才和他信任的人商量是否把每笔额度加 1 u。结果只用 R（R = 那一笔事先定的最多亏损），不谈赚了多少 u、能还多少钱。';
 const STATE_QS=[['sleep','昨晚睡够 6 小时'],['alcohol','今天没有喝酒'],['alarm','不是被价格提醒叫醒的'],['busy','没在开车、洗澡、吃饭、喝酒聚会或外出'],['calm','心情平稳，不是正在后悔或着急']];
 /* 开单理由：先问是不是自己写好的计划，再多选“此刻有没有这些情况”（任一 → 红灯；只有 ext → 黄灯 30 分钟） */
-const TRIG=[['missed','刚错过行情 / 刚被打掉'],['regret','想把亏的赚回来、想一把回本'],['revisit','价格比上一单好 / 回到了上一单的位置'],['ext','刚看了直播、群消息、新闻或别人晒单'],['askGroup','刚去群里问了能不能开'],['bored','无聊，想去别的品种“舔一口”'],['toy','想开个小仓玩一下或晒一下'],['number','想让账户回到某个数']];
+const TRIG=[['missed','刚错过行情（挂单没成交、没来得及开）'],['chaseBE','刚被保本 / 小赚止损打掉，行情接着走，想追回“少赚的”'],['calc','刚在算能赚多少、能还多少，或想着赚到以后怎么花'],['ifOnly','刚在想“要是当时……就好了”'],['regret','想把亏的赚回来、想一把回本'],['revisit','价格比上一单好 / 回到了上一单的位置'],['ext','刚看了直播、群消息、新闻或别人晒单'],['askGroup','刚去群里问了能不能开'],['bored','无聊，想去别的品种“舔一口”'],['toy','想开个小仓玩一下或晒一下'],['number','想让账户回到某个数']];
 const TRIG_OLD={plan:'自己的结构分析，计划已写好',noplan:'没有提前写好的计划',ext:'看了直播、群消息、新闻或别人晒单',regret:'刚错过、刚被打掉、想把亏的赚回来',bored:'无聊，想去别的品种“舔一口”',toy:'想开个小仓玩一下或晒一下'};
 const trigText=k=>(TRIG.find(x=>x[0]===k)||[0,TRIG_OLD[k]||k])[1];
 const IFLOSE=[['letStop','什么都不做，让止损执行'],['add','加仓摊成本'],['later','到时候再看']];
@@ -293,8 +294,10 @@ const STOPHIT=[['no','没到过'],['yesExit','到过，止损执行了'],['yesSt
 const FLOATMAX=[['0','没浮亏过'],['half','不到一半'],['1','差不多一倍'],['1to2','1–2 倍'],['2plus','2 倍以上'],['nearLiq','差点爆仓']];
 const FLOATACT=[['waitStop','按计划等止损'],['waitBack','等它回到成本再走'],['add','加仓摊成本'],['widen','把止损挪远或撤了'],['resisted','想加仓 / 想挪止损，但忍住了'],['stare','一直盯着，很难受']];
 const HOLDOTHER=[['transfer','转钱或入金'],['badState','喝酒、没睡够、半夜、开车洗澡时下单或改单'],['extChanged','看了直播、群或新闻，改了止盈止损或没按计划平'],['feeHold','因为手续费，到了止损没走'],['feeLimit','因为手续费，到了计划出场位还挂限价等着'],['none','都没有']];
-const AFTERCLOSE=[['counterfactual','算了“本来能赚多少”'],['watched','又去看了这个品种'],['showoff','发到群里或晒给别人'],['reenter','马上又想开一单'],['none','都没有']];
-const EMO=['平静','焦虑','后悔','不甘心','难受/恶心','害怕/心慌','侥幸','舒服/得意','无聊','想回本','贪','摆烂'];
+const AFTERMOVE=[['kept','接着往我原来的方向走了'],['back','回来了，平得对'],['flat','没怎么动'],['notLooked','没去看']];
+const AFTERTHINK=[['counterfactual','算了“要是拿住能赚多少”'],['feltLoss','把没赚到的当成亏的，不甘心'],['ifOnly','想“要是当时……就好了”（仓位、进场、没挪保本）'],['calcFuture','算以后能赚多少、能还多少'],['spend','想赚到钱以后怎么花'],['none','都没有']];
+const AFTERCLOSE=[['counterfactual','算了“本来能赚多少”（旧选项）'],['watched','又去看了这个品种'],['reenter','马上又想开一单'],['chased','追进去又开了一单'],['showoff','发到群里或晒给别人'],['depositUrge','想入金或转钱'],['none','都没有，放下了']];
+const EMO=['平静','焦虑','后悔','不甘心','在算数 / 幻想','难受/恶心','害怕/心慌','侥幸','舒服/得意','无聊','想回本','贪','摆烂'];
 const REDS=[['addLoss','浮亏时加过仓'],['moveStop','把止损往外挪过'],['cancelStop','撤过止损'],['transfer','持仓时转过钱或入金'],['second','同时开了第二个仓'],['badState','状态不对时下单或改单（喝酒、没睡够、半夜、开车洗澡）']];
 const EXEC=[['followEntry','入场按计划的价位和理由'],['stopAtOpen','开仓时就同时挂了止损'],['sizeOk','数量没有超过检查算出的上限'],['followExit','出场是按计划（止损或目标）']];
 const FEEINCL=[['yes','已扣'],['no','没扣'],['unk','不清楚']];
@@ -310,7 +313,7 @@ const DOING_TIP={ext:'刚看了直播或群：30 分钟内不改单（R17）。'
 const feelL=(arr,k)=>(arr.find(x=>x[0]===k)||[k,k])[1];
 function feelText(f){const a=[];if((f.emo||[]).length)a.push(f.emo.map(k=>feelL(FEEL,k)).join('、'));if(f.pnl)a.push(feelL(PNLS,f.pnl));if(f.price!=null&&f.price!=='')a.push('价格 '+f.price);if((f.doing||[]).length)a.push('在'+f.doing.map(k=>feelL(DOING,k)).join('、'));if(f.text)a.push('“'+f.text+'”');if((f.shots||[]).length)a.push('图片 '+f.shots.length+' 张');return a.join(' · ')}
 /* 冲动按钮：点了就记下时间和是哪一笔（不算违规，算“忍住”） */
-const PANIC=[['add','我想加仓','硬线 3：练习期不加仓。想加仓这个念头，就是该走的信号。什么都不做，让止损执行。'],['widenStop','我想把止损挪远','硬线 3：止损只能收紧。想放宽，就现在平仓。挪远了要停 7 天。'],['cancelStop','我想撤掉止损','硬线 3：撤了要停 7 天。已经撤了的话，马上挂回去。'],['moveToBE','我想把止损挪到保本','提醒：浮盈不到计划亏损的 1 倍，先别挪保本。保本损很容易被扫掉，扫掉后你会想追。'],['transfer','我想转钱进来','硬线 6：不入金、不转钱。转进来这轮练习就结束，停 30 天。这个念头来了，跟你信任的那个人说一声。'],['calc','我在算能赚多少 / 能还多少','算数会让你在脑子里先把钱“拿到手”，之后每一次正常波动都像被拿走，于是拿不住、不肯走、还想加。停下来，只看止损和计划。'],['second','我想再开一单','硬线 2：同时只开一个仓。先处理手上这一单。'],['askGroup','我想去群里问问','不在群里问“能不能空/多”。别人的看法会变成你不止损的理由。'],['flipLater','我想先平掉，去更好的位置再开','平就是平。如果是亏着平的，按硬线 5 今天就停了。'],['feeHold','嫌手续费贵，不想平','到止损就让止损单执行。省手续费的办法是少交易，不是不止损。'],['badState','我现在状态不对','状态不对：只能平仓，不开、不加、不改止损。']];
+const PANIC=[['add','我想加仓','硬线 3：练习期不加仓。想加仓这个念头，就是该走的信号。什么都不做，让止损执行。'],['widenStop','我想把止损挪远','硬线 3：止损只能收紧。想放宽，就现在平仓。挪远了要停 7 天。'],['cancelStop','我想撤掉止损','硬线 3：撤了要停 7 天。已经撤了的话，马上挂回去。'],['moveToBE','我想把止损挪到保本','提醒：浮盈不到计划亏损的 1 倍，先别挪保本。保本损很容易被扫掉，扫掉后你会想追。'],['transfer','我想转钱进来','硬线 6：不入金、不转钱。转进来这轮练习就结束，停 30 天。这个念头来了，跟你信任的那个人说一声。'],['ifOnly','我在想“要是刚才……就好了”','仓位再大点、早点进、没挪保本……这些都是在算不属于你的钱。回到计划：止损在哪、目标在哪，其他都不算。'],['calc','我在算能赚多少 / 能还多少','算数会让你在脑子里先把钱“拿到手”，之后每一次正常波动都像被拿走，于是拿不住、不肯走、还想加。停下来，只看止损和计划。'],['second','我想再开一单','硬线 2：同时只开一个仓。先处理手上这一单。'],['askGroup','我想去群里问问','不在群里问“能不能空/多”。别人的看法会变成你不止损的理由。'],['flipLater','我想先平掉，去更好的位置再开','平就是平。如果是亏着平的，按硬线 5 今天就停了。'],['feeHold','嫌手续费贵，不想平','到止损就让止损单执行。省手续费的办法是少交易，不是不止损。'],['badState','我现在状态不对','状态不对：只能平仓，不开、不加、不改止损。']];
 
 /* ================= 状态与存储 =================
    数据的家是你的 GitHub 私有仓库（3_现在的记录/）。
@@ -487,7 +490,11 @@ function gateEval(form){
   if(g.isPlan===false)warn.push('依据不是自己提前写好的计划：这笔更像冲动');
   g.trigs.filter(k=>k!=='ext').forEach(k=>warn.push('此刻：'+trigText(k)+'。这不能当开单理由，想清楚再开'));
   if(P.externalSeenAt&&t-P.externalSeenAt<30*MIN)warn.push(`刚看了直播、群消息或新闻，最好再等 ${left(P.externalSeenAt+30*MIN)} 分钟`);
-  if(g.bePol==='immediate')warn.push('一浮盈就挪保本：过去 35 笔在成本附近被止损打掉，合计只赚 1,378。建议赚到计划亏损的 1 倍再挪');
+  if(g.bePol==='immediate')warn.push('一浮盈就挪保本：过去 35 笔在成本附近被止损打掉，合计只赚 1,378；被打掉后最容易算“少赚了多少”、再追进去。建议赚到计划亏损的 1 倍再挪');
+  {const lt=P.lastClose&&P.lastClose.id?APP.T.find(x=>x.id===P.lastClose.id):null;const lr=lt?rOf(lt):null;
+   if(lt&&lt.close&&lt.close.t&&lt.close.exitType==='stop'&&lr!=null&&lr>-0.3&&lr<1){const ago=t-lt.close.t;
+     if(ago<30*MIN)cool.push(`上一单在保本 / 小赚处被止损打掉，30 分钟内不开新单，还剩 ${left(lt.close.t+30*MIN)} 分钟。过去 39 笔就是这样算“少赚了多少”再追进去的`);
+     else if(ago<4*H&&lt.symbol===form.symbol&&lt.side===form.side)warn.push('上一单在保本 / 小赚处被打掉，这一单方向一样：是不是想把“少赚的”追回来？')}}
   const lc=P.lastClose;if(lc&&lc.t&&t-lc.t<60*MIN&&lc.side&&lc.side!==form.side&&lc.sym===form.symbol)warn.push('刚平完就反手：过去 18 次这样，多数是冲动');
   if(/kol|直播|群|胡总|比特肥|老师|带单|喊单|kk\s*说/i.test(form.note||''))warn.push('补充说明里写了别人的观点：只按自己的计划开');
   if(!form.invalid)warn.push('没写“到什么情况说明我看错了”');
@@ -531,6 +538,7 @@ function deriveFlags(t){if(!t||!t.open||t.open.t==null||t.status==='paper')retur
   const prior=others.filter(x=>x.close&&x.close.t!=null&&x.close.t<=o);
   t.afterLoss60=prior.some(x=>(netPnl(x)||0)<0&&o-x.close.t<60*MIN);
   t.afterBigWin30=prior.some(x=>isBigWin(x)&&o-x.close.t<30*MIN);
+  t.chaseAfterBE=prior.some(x=>{const r=rOf(x);return x.close.exitType==='stop'&&r!=null&&r>-0.3&&r<1&&x.symbol===t.symbol&&x.side===t.side&&o-x.close.t<4*H});
   {const d0=bj(o).day;const startedSame=others.filter(x=>x.open.t<o&&bj(x.open.t).day===d0).length;t.overDay=startedSame>=2||prior.some(x=>bj(x.close.t).day===d0&&(netPnl(x)||0)<0)}
   const ov=others.some(x=>x.open.t<o&&(!x.close||x.close.t==null||x.close.t>o));
   t.checks=t.checks||{};if(ov)t.checks.second=true;return ov}
@@ -740,7 +748,7 @@ function prefillFromEvents(t){const dir=t.side==='LONG'?1:-1,ev=t.events||[],o=t
 function startWizard(t){const r=t.review||{};const pf=prefillFromEvents(t);
   APP.wiz={id:t.id,step:0,pf,real:r.realTriggers?r.realTriggers.slice():[],followEntry:r.exec&&r.exec.followEntry!=null?r.exec.followEntry:null,exitWhy:r.exitWhy||null,
     smoves:r.smoves?r.smoves.slice():pf.smoves.slice(),beReached:r.beReached!=null?r.beReached:pf.beReached,stopHit:r.stopHit||null,floatMax:r.floatMax||null,
-    floatActs:r.floatActs?r.floatActs.slice():pf.floatActs.slice(),holdOther:r.holdOther?r.holdOther.slice():pf.holdOther.slice(),afterClose:r.afterClose?r.afterClose.slice():[],
+    floatActs:r.floatActs?r.floatActs.slice():pf.floatActs.slice(),holdOther:r.holdOther?r.holdOther.slice():pf.holdOther.slice(),afterClose:r.afterClose?r.afterClose.slice():[],afterThink:r.afterThink?r.afterThink.slice():[],afterMove:r.afterMove||null,
     emo:Object.assign({before:[],during:[],after:[],level:3},t.emotion||{}),commitBroken:r.commitBroken?r.commitBroken.slice():[],lesson:r.lesson||'',next:r.next||''};
   const sv=lsGet('tj_wiz_'+t.id,null);if(sv&&sv.id===t.id&&sv.step!=null){APP.wiz=sv;toast(`接着上次的第 ${sv.step+1} 步`)}
   APP.route='review';APP.detail=null;render();window.scrollTo(0,0)}
@@ -806,6 +814,7 @@ function lessonHints(t,w){const h=[];const c=wizChecks(t,w);
   if(t.plan&&t.plan.gate!=='pass')h.push(['下单前先做“下单前检查”','把检查页放在手机首屏']);
   if(!trigOk(t))h.push(['开单理由只能是写好的计划','看完直播或群消息先等 30 分钟']);
   if((w.afterClose||[]).includes('counterfactual')||(w.afterClose||[]).includes('watched'))h.push(['平仓后 2 小时不看这个品种','平仓后马上关掉图表']);
+  {const th=w.afterThink||[];if(th.some(k=>['counterfactual','feltLoss','ifOnly'].includes(k))||(w.afterClose||[]).includes('chased')||t.chaseAfterBE)h.unshift(['没赚到的钱不是我的，也不算亏','保本或小赚被打掉后 30 分钟不开新单，先关掉这个品种的图']);if(th.includes('calcFuture')||th.includes('spend'))h.push(['赚了也不算能赚多少、能还多少','想算的时候，在“心情和念头”里记下来，不据此开单'])}
   if(!h.length)h.push(['照这个流程再做一笔','下一笔继续先做下单前检查']);return h}
 
 /* ================= 视图 ================= */
@@ -833,7 +842,7 @@ function homeTiles(){const P=APP.P,tn=now();const opens=openTrades();const pend=
   ${tile('tab','gate','下单前检查',gateSub,'primary')}
   ${tile('tab','hold','持仓中',opens.length?opens.slice(0,2).map(short).join('<br>'):'现在没有持仓',opens.length?'alert':'',opens.length||'')}
   ${tile('newCapture','','记一笔','放截图、填几个数字，1 分钟')}
-  ${tile('tab','mood','今天的心情',es.length?`今天记了 ${es.length} 次 · 最近 ${bj(last.t).str.slice(6)}${last.mood?' 心情'+(MOOD.find(x=>x[0]===last.mood)||['',''])[1]:''}`:'今天还没记，记一下现在的状态',es.length?'':'alert')}
+  ${tile('tab','mood','心情和念头',es.length?`今天记了 ${es.length} 次 · 最近 ${bj(last.t).str.slice(6)}${last.mood?' 心情'+(MOOD.find(x=>x[0]===last.mood)||['',''])[1]:''}`:'今天还没记，记一下现在的状态',es.length?'':'alert')}
   ${tile('tab','review','复盘',pend.length?`${pend.length} 笔待复盘 · 每笔 2 分钟`:'每笔 2 分钟，一屏一个问题',pend.length?'alert':'',pend.length||'')}
   ${tile('week',wk,'本周复盘','先自己写 3 行，再生成给他看的一页')}
   ${tile('tab','rules','6 条硬线和承诺',lock?`<span class="stop">${esc(P.lockReason||'破了一条硬线')}</span>`:'规则、我的承诺；主动承认和入金也在这里记',lock?'danger':'')}
@@ -846,7 +855,7 @@ function viewHold(){const opens=openTrades();let h=subHead('持仓中',opens.len
   if(opens.length>1)h+=`<section class="card bad"><p class="small">现在有 ${opens.length} 笔持仓（硬线 2：同时只开一个）。每一笔都照常如实记录，点下面切换。</p><div class="seg">${opens.map(t=>`<button type="button" data-act="holdPick" data-id="${t.id}" aria-pressed="${t.id===cur.id}">#${t.no} ${esc(t.symbol)} ${t.side==='LONG'?'多':'空'}</button>`).join('')}</div></section>`;
   return h+holdingCard(cur)}
 function viewMood(){const tn=now();const ks=Object.keys(APP.D).sort().reverse();const recent=ks.flatMap(k=>(APP.D[k].entries||[]).slice().reverse().map(e=>({k,e}))).slice(0,15);
-  return subHead('今天的心情','一天几次都行，没交易的日子也记')+moodCard()+
+  return subHead('心情和念头','一天几次都行，没交易的日子也记；算数、幻想都算')+moodCard()+
   `<section class="card"><h3>刚看了直播或群消息？</h3><p class="small muted">点一下，30 分钟内下单前检查会提醒你先等等。</p><button type="button" class="btn sec" data-act="extSeen">我刚看了直播 / 群消息</button>${APP.P.externalSeenAt&&tn-APP.P.externalSeenAt<30*MIN?`<p class="small wait">还剩 ${Math.ceil((APP.P.externalSeenAt+30*MIN-tn)/MIN)} 分钟。</p>`:''}</section>`+
   `<section class="card"><h3>最近记的</h3>${recent.length?`<div class="evs">${recent.map(({k,e})=>`<div class="ev feel"><span class="mono small muted">${k.slice(5)} ${bj(e.t).str.slice(6)}</span><span class="small">${esc(moodText(e))}</span><span></span></div>`).join('')}</div>`:'<p class="muted small">还没有记录。</p>'}<p class="small muted">每周的心情统计在“进步”页。</p></section>`}
 function viewRules(){const P=APP.P;let h=subHead('6 条硬线和承诺','')+practiceCard();
@@ -895,7 +904,7 @@ function commitCard(){const P=APP.P;const cm=(P.commitments||[]).filter(c=>c&&c.
   return `<section class="card"><h3>我的承诺</h3>${cm.length?`<div class="promise"><ol>${cm.map(c=>`<li>${esc(c.text)}</li>`).join('')}</ol></div>`:'<p class="small muted">还没写。写下最多 3 条你自己愿意守的承诺，下单前检查时会先看到它们。</p>'}<button type="button" class="btn sec" data-act="cmEditOpen">${cm.length?'修改':'写承诺'}</button></section>`}
 function depForm(){const f=APP.depForm;
   return `<div class="evform"><h4>记录一次入金或转钱</h4><div class="fields"><label class="f">金额多少 u<input data-dep="amount" inputmode="decimal" value="${esc(f.amount||'')}"></label></div><p class="small stop">入金破了硬线 6：这轮练习结束，停 30 天。还是要如实记，隐瞒比入金更危险。</p><div class="btns full"><button type="button" class="btn" data-act="depSave">记下</button><button type="button" class="btn sec" data-act="depCancel">取消</button></div></div>`}
-const APP_VERSION='10-28 · 11';
+const APP_VERSION='10-28 · 12';
 const SYMS=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT','DOGEUSDT'];
 function symField(src,f,id,cls){const cur=f.symbol==='OTHER'?'':(f.symbol||'');const other=!!f.symOther||!SYMS.includes(cur);const attr=src==='g'?'data-g':'data-d';
   return `<label class="f">品种<select id="${id}" class="${cls||''}" data-symsel="${src}">${SYMS.map(x=>`<option value="${x}" ${!other&&cur===x?'selected':''}>${x}</option>`).join('')}<option value="OTHER" ${other?'selected':''}>其他品种（自己填）</option></select></label>${other?`<label class="f">填品种名<input ${attr}="symbol" value="${esc(cur)}" placeholder="例如 HYPEUSDT" autocapitalize="characters" autocomplete="off"></label>`:''}${src==='g'&&cur!=='BTCUSDT'?`<p class="small stop wide">硬线 2：练习期只做 BTCUSDT，选别的品种会是红灯。</p>`:''}`}
@@ -903,17 +912,23 @@ function stopPnl(t){const o=t.open||{},p=t.plan||{};const e=o.price,q=o.qty,st=p
 function practiceCard(){const P=APP.P,t=now();const lock=P.lockUntil>t;
   return `<section class="card ${lock?'bad':''}">${lock?`<h3 class="stop">停到 ${bj(P.lockUntil).str}</h3><p class="small">${esc(P.lockReason||'破了一条硬线')}。这段时间不开仓；心情照常记。</p>`:''}<h3>6 条硬线（用账户里剩下的钱练，不入金）</h3><ol class="hl">${[1,2,3,4,5,6].map(n=>`<li>${esc(hlText(n))}</li>`).join('')}</ol><p class="small muted">破一条：停 7 天，连续守住的笔数清零。入金或转钱：这轮练习结束，停 30 天。主动承认的照样要停，但如实记下比隐瞒好得多。</p></section>`}
 const MOOD=[['1','很差'],['2','差'],['3','一般'],['4','好'],['5','很好']];
-const DAYQ=[['tradeUrge','今天想交易的冲动',[['0','没有'],['1','有一点'],['2','很强']]],['calc','算过能赚多少、能还多少',[['0','没有'],['1','算过']]],['depositUrge','想入金或转钱',[['0','没有'],['1','想过']]],['sleep','昨晚睡够 6 小时',[['1','够'],['0','不够']]],['drink','今天喝酒了',[['0','没有'],['1','喝了']]]];
-const moodDraft=()=>APP.moodF||(APP.moodF={mood:null,emo:[],q:{},text:''});
+const FANT=[['future','算以后能赚多少、能还多少、能翻几倍'],['spend','想赚到钱以后怎么花、给谁看（买车、还清、让家里看）'],['ifOnly','想“要是当时……现在就有多少、就不会这样了”'],['missed','算“少赚了多少”，把没拿到的当成亏的'],['backNum','想一把回本，想让账户回到某个数'],['none','都没有']];
+const FANTACT=[['nothing','想完就放下了'],['watch','去看盘了'],['wantOpen','想开仓'],['opened','开了仓'],['bigger','想开大一点'],['deposit','想入金或转钱']];
+const hasFant=e=>((e.fant||[]).some(k=>k!=='none'))||(e.q&&e.q.calc==='1');
+const fantTypes=e=>{const a=(e.fant||[]).filter(k=>k!=='none');if(!a.length&&e.q&&e.q.calc==='1')a.push('future');return a};
+const DAYQ=[['tradeUrge','今天想交易的冲动',[['0','没有'],['1','有一点'],['2','很强']]],['depositUrge','想入金或转钱',[['0','没有'],['1','想过']]],['sleep','昨晚睡够 6 小时',[['1','够'],['0','不够']]],['drink','今天喝酒了',[['0','没有'],['1','喝了']]]];
+const moodDraft=()=>APP.moodF||(APP.moodF={mood:null,emo:[],q:{},fant:[],fantAct:[],text:''});
 const todayKey=()=>bj(now()).day;
-function moodText(e){const a=[];if(e.mood)a.push('心情'+(MOOD.find(x=>x[0]===e.mood)||['',''])[1]);if((e.emo||[]).length)a.push(e.emo.map(k=>feelL(FEEL,k)).join('、'));const q=e.q||{};if(q.tradeUrge==='2')a.push('很想交易');else if(q.tradeUrge==='1')a.push('有点想交易');if(q.calc==='1')a.push('算过数');if(q.depositUrge==='1')a.push('想入金');if(q.sleep==='0')a.push('没睡够');if(q.drink==='1')a.push('喝了酒');if(e.text)a.push('“'+e.text+'”');return a.join(' · ')}
+function moodText(e){const a=[];if(e.mood)a.push('心情'+(MOOD.find(x=>x[0]===e.mood)||['',''])[1]);if((e.emo||[]).length)a.push(e.emo.map(k=>feelL(FEEL,k)).join('、'));const q=e.q||{};if(q.tradeUrge==='2')a.push('很想交易');else if(q.tradeUrge==='1')a.push('有点想交易');{const ft=fantTypes(e);if(ft.length)a.push('念头：'+ft.map(k=>feelL(FANT,k)).join('、'));if((e.fantAct||[]).length)a.push('之后：'+e.fantAct.map(k=>feelL(FANTACT,k)).join('、'))}if(q.depositUrge==='1')a.push('想入金');if(q.sleep==='0')a.push('没睡够');if(q.drink==='1')a.push('喝了酒');if(e.text)a.push('“'+e.text+'”');return a.join(' · ')}
 function moodCard(){const k=todayKey();const d=APP.D[k];const es=(d&&d.entries)||[];const f=moodDraft();const msg=APP.moodMsg;
   const chip=(grp,v,l,on)=>`<button type="button" data-act="moodPick" data-grp="${grp}" data-v="${v}" aria-pressed="${on}">${l}</button>`;
-  return `<section class="card"><h3>今天的心情（随时记，一天几次都行）</h3>${es.length?`<p class="small muted">今天已经记了 ${es.length} 次，最近一次 ${bj(es[es.length-1].t).str.slice(6)}：${esc(moodText(es[es.length-1]))}</p>`:''}
+  return `<section class="card"><h3>心情和念头（随时记，一天几次都行）</h3>${es.length?`<p class="small muted">今天已经记了 ${es.length} 次，最近一次 ${bj(es[es.length-1].t).str.slice(6)}：${esc(moodText(es[es.length-1]))}</p>`:''}
   <div class="f">现在心情<div class="seg">${MOOD.map(x=>chip('mood',x[0],x[1],f.mood===x[0])).join('')}</div></div>
   <div class="f">心里是（可多选）<div class="seg">${FEEL.map(x=>chip('emo',x[0],x[1],f.emo.includes(x[0]))).join('')}</div></div>
   ${DAYQ.map(q=>`<div class="f">${q[1]}<div class="seg">${q[2].map(x=>chip('q:'+q[0],x[0],x[1],f.q[q[0]]===x[0])).join('')}</div></div>`).join('')}
-  <label class="f wide">今天发生了什么、心里在想什么（可以按手机键盘上的话筒直接说）<textarea class="grow" data-mood="text" rows="3" placeholder="例如：上午看到行情涨了很想开，算了一下要是开了能赚多少，后来去吃饭了">${esc(f.text)}</textarea></label>
+  <div class="fantbox"><div class="f"><b>脑子里出现过这些念头吗？（可多选）</b><div class="seg">${FANT.map(x=>chip('fant',x[0],x[1],(f.fant||[]).includes(x[0]))).join('')}</div></div>
+  ${(f.fant||[]).some(k=>k!=='none')?`<div class="f">这个念头之后，你做了什么？（可多选）<div class="seg">${FANTACT.map(x=>chip('fantAct',x[0],x[1],(f.fantAct||[]).includes(x[0]))).join('')}</div></div>`:''}</div>
+  <label class="f wide">今天发生了什么、心里在想什么（念头具体是什么也写下来，可以按话筒直接说）<textarea class="grow" data-mood="text" rows="3" placeholder="例如：中午看到涨了，想到要是上周拿住那单现在就有 3000 了，就去看盘，很想开空，后来去吃饭了">${esc(f.text)}</textarea></label>
   <button type="button" class="btn" data-act="moodSave">记下来</button>${msg?`<p class="okmsg">${esc(msg)}</p>`:''}</section>`}
 function timeline(t){const L=[];(t.events||[]).forEach(e=>L.push(Object.assign({k:'ev'},e)));(t.urges||[]).forEach(u=>L.push({k:'urge',t:u.t,kind:u.kind}));(t.feels||[]).forEach(f=>L.push(Object.assign({k:'feel'},f)));return L.sort((a,b)=>a.t-b.t)}
 function tlLine(x){if(x.k==='ev')return evLine(x);
@@ -965,7 +980,7 @@ function viewGate(){if(!APP.gate)APP.gate=freshGate();const g=APP.gate,f=gateFor
    <label class="f wide">补充说明（选填；结构依据在第 3 步点选，这里不写任何人的观点）<textarea id="g_basis" class="grow" rows="3" data-g="basis" placeholder="例如：12 小时直角三角，平边 62,000，碰了 4 次">${esc(f.basis)}</textarea></label>
    <label class="f wide">到什么情况说明我看错了（到这就不做了）<textarea id="g_invalid" class="grow" rows="3" data-g="invalid" placeholder="例如：1 小时收回颈线上方">${esc(f.invalid)}</textarea></label>
    <label class="f wide">你本来想开多少（选填，不影响能开多少，只是记下来）<input id="g_intended" data-g="intended" inputmode="decimal" value="${esc(f.intended)}" placeholder="例如 0.5"></label>
-  </div><label class="small" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="g_preplan" data-g="preplan" ${f.preplan?'checked':''} style="margin-top:6px"> 这是 18:00 之前就写好的计划（19:00–23:00 必须勾选）</label></section>
+  </div></section>
   <section class="card"><h3>5 · 先想好</h3>
    <div class="f">如果开仓后浮亏，你打算怎么办？<div class="seg">${IFLOSE.map(x=>`<button type="button" class="${x[0]==='letStop'?'y':'n'}" data-act="gpick" data-k="ifLose" data-v="${x[0]}" aria-pressed="${g.ifLose===x[0]}">${x[1]}</button>`).join('')}</div></div>
    <div class="f">浮盈后什么时候把止损挪到成本？<div class="seg">${BEPOL.map(x=>`<button type="button" class="${x[0]==='after1R'?'y':'n'}" data-act="gpick" data-k="bePol" data-v="${x[0]}" aria-pressed="${g.bePol===x[0]}">${x[1]}</button>`).join('')}</div></div>
@@ -1093,7 +1108,7 @@ function viewWizard(){const w=APP.wiz,t=APP.T.find(x=>x.id===w.id);if(!t){APP.wi
   const N=6,s=w.step;const head=`<section class="card"><div class="btns"><button type="button" class="btn sec" data-act="wizQuit">先不做了</button></div><div class="steps">${Array.from({length:N},(_,i)=>`<i class="${i<=s?'on':''}"></i>`).join('')}</div><span class="small muted">#${t.no} ${esc(t.symbol)} ${t.side==='LONG'?'多':'空'} · ${t.close?rS(rOf(t)):''} · 第 ${s+1}/${N} 步</span></section>`;
   const R=rOf(t);let body='';
   if(s===0){const before=(t.plan&&Array.isArray(t.plan.triggers))?(t.plan.isPlan?['plan']:[]).concat(t.plan.triggers):null;const diff=before&&w.real.length&&(before.slice().sort().join()!==w.real.slice().sort().join());
-    body=`<section class="card"><h2>先看一眼计划和结果</h2><dl class="kv"><dt>开单时说的理由</dt><dd>${esc(trigLabel(t))}</dd><dt>下单前检查</dt><dd>${t.plan&&t.plan.gate==='pass'?'<span class="go">做了，绿灯</span>':'<span class="stop">没做</span>'}</dd><dt>计划</dt><dd>${t.plan&&t.plan.entry?`入场 ${t.plan.entry} · 止损 ${t.plan.stop0??t.plan.stop} · 目标 ${t.plan.target}`:'没写'}</dd>${t.plan&&t.plan.kk?`<dt>结构依据</dt><dd>${esc(t.plan.basis||'')}${t.plan.kk.ok===false?' · <span class="stop">KK 清单不合格</span>':''}</dd>`:''}<dt>实际</dt><dd>开 ${t.open?t.open.price0??t.open.price:'—'} → 平 ${t.close&&t.close.price!=null?t.close.price:'—'}${R!=null?` · ${R>=0?'赚':'亏'}了计划亏损的 ${Math.abs(R).toFixed(2)} 倍`:''}</dd><dt>持仓</dt><dd>${t.open&&t.close&&t.open.t!=null?durText(t.close.t-t.open.t):''}${overnight(t)?' · <span class="stop">跨过了凌晨</span>':''}${t.afterLoss60?' · <span class="stop">亏损后 60 分钟内开的</span>':''}${t.afterBigWin30?' · <span class="stop">大赚后 30 分钟内开的</span>':''}</dd></dl>${timeline(t).length?`<h4>持仓中记下的（感受、冲动和动作）</h4><div class="evs">${timeline(t).map(tlLine).join('')}</div>`:''}${(t.shots||[]).length?`<div class="shots">${t.shots.map(x=>`<img data-img="${esc(x.p)}" alt="${esc(KIND[x.kind]||'截图')}">`).join('')}</div>`:''}</section>
+    body=`<section class="card"><h2>先看一眼计划和结果</h2><dl class="kv"><dt>开单时说的理由</dt><dd>${esc(trigLabel(t))}</dd><dt>下单前检查</dt><dd>${t.plan&&t.plan.gate==='pass'?'<span class="go">做了，绿灯</span>':'<span class="stop">没做</span>'}</dd><dt>计划</dt><dd>${t.plan&&t.plan.entry?`入场 ${t.plan.entry} · 止损 ${t.plan.stop0??t.plan.stop} · 目标 ${t.plan.target}`:'没写'}</dd>${t.plan&&t.plan.kk?`<dt>结构依据</dt><dd>${esc(t.plan.basis||'')}${t.plan.kk.ok===false?' · <span class="stop">KK 清单不合格</span>':''}</dd>`:''}<dt>实际</dt><dd>开 ${t.open?t.open.price0??t.open.price:'—'} → 平 ${t.close&&t.close.price!=null?t.close.price:'—'}${R!=null?` · ${R>=0?'赚':'亏'}了计划亏损的 ${Math.abs(R).toFixed(2)} 倍`:''}</dd><dt>持仓</dt><dd>${t.open&&t.close&&t.open.t!=null?durText(t.close.t-t.open.t):''}${overnight(t)?' · <span class="stop">跨过了凌晨</span>':''}${t.afterLoss60?' · <span class="stop">亏损后 60 分钟内开的</span>':''}${t.afterBigWin30?' · <span class="stop">大赚后 30 分钟内开的</span>':''}${t.chaseAfterBE?' · <span class="stop">保本 / 小赚被打掉后又追进去的</span>':''}</dd></dl>${timeline(t).length?`<h4>持仓中记下的（感受、冲动和动作）</h4><div class="evs">${timeline(t).map(tlLine).join('')}</div>`:''}${(t.shots||[]).length?`<div class="shots">${t.shots.map(x=>`<img data-img="${esc(x.p)}" alt="${esc(KIND[x.kind]||'截图')}">`).join('')}</div>`:''}</section>
     <section class="card"><h3>回头看，开这单真正的原因是？（可多选）</h3>${multi('wreal',REAL,w.real,k=>k==='plan'?'y':'n')}${diff?`<p class="small wait">开单前选的是“${esc(before.map(k=>k==='plan'?'自己写好的计划':trigText(k)).join('、')||'—')}”，现在选的是“${esc(w.real.map(k=>k==='plan'?'自己写好的计划':trigText(k)).join('、'))}”。只记下来，不扣分。</p>`:''}
     ${t.plan&&t.plan.gate==='pass'?`<div class="yn"><span>入场是按计划的价位和理由吗</span>${yn('wset','followEntry',w.followEntry)}</div>`:`<p class="small muted">这笔没做下单前检查，没有计划可对照，“按计划执行”一项直接算没做到。</p>`}${nav(s)}</section>`}
   if(s===1){const beQ=w.smoves.includes('be')||w.smoves.includes('smallWin');
@@ -1107,11 +1122,14 @@ function viewWizard(){const w=APP.wiz,t=APP.T.find(x=>x.id===w.id);if(!t){APP.wi
     ${w.floatMax&&w.floatMax!=='0'?`<div class="f">浮亏时你主要怎么做的？（可多选）${multi('wfa',FLOATACT,w.floatActs,k=>['waitStop','resisted'].includes(k)?'y':'n')}</div>`:''}
     <div class="f">持仓时还有没有这些？（可多选）${multi('who',HOLDOTHER,w.holdOther,k=>k==='none'?'y':'n')}</div>${nav(s)}</section>`}
   if(s===3){body=`<section class="card"><h2>平仓后和当时的感觉</h2>
-    <div class="f">平仓后你做了哪些？（可多选）${multi('wac',AFTERCLOSE,w.afterClose,k=>k==='none'?'y':'n')}</div>
+    <div class="f">平仓后行情怎么走的？${single('wam',AFTERMOVE,w.afterMove)}</div>
+    <div class="f">平仓后脑子里出现过这些念头吗？（可多选）${multi('wat',AFTERTHINK,w.afterThink||[],k=>k==='none'?'y':'n')}</div>
+    <div class="f">平仓后你做了哪些？（可多选）${multi('wac',AFTERCLOSE.filter(x=>x[0]!=='counterfactual'||w.afterClose.includes('counterfactual')),w.afterClose,k=>k==='none'?'y':'n')}</div>
+    ${w.afterMove==='kept'&&!(w.afterThink||[]).length?`<p class="small wait">行情接着往你的方向走时，最容易算“少赚了多少”。照实点，点了不扣分。</p>`:''}
     ${[['before','开仓前'],['during','持仓中'],['after','平仓后']].map(p=>`<div class="f">${p[1]}的感觉<div class="seg">${EMO.map(e=>`<button type="button" data-act="we" data-p="${p[0]}" data-v="${e}" aria-pressed="${w.emo[p[0]].includes(e)}">${e}</button>`).join('')}</div></div>`).join('')}<div class="f">情绪有多强（1 很平静，5 很强烈）<div class="seg">${[1,2,3,4,5].map(n=>`<button type="button" data-act="wl" data-v="${n}" aria-pressed="${w.emo.level===n}">${n}</button>`).join('')}</div></div>${nav(s)}</section>`}
   if(s===4){const g=gradeOf(t,w);const G=GRADE[g.key];const cl=classify(Object.assign({},t,{checks:g.checks,review:Object.assign({},t.review||{},{smoves:w.smoves,floatActs:w.floatActs,floatMax:w.floatMax,stopHit:w.stopHit,beReached:w.beReached,exitWhy:w.exitWhy})}),g.key);
     body=`<section class="card"><h2>这一笔是：${G[0]}</h2>${grid3(g.key)}<p>${G[1]}</p>${g.good?'':`<p class="small muted">判成“犯了错”的原因：${whyBad(t,w).map(esc).join('；')}。</p>`}</section>
-    <section class="card"><h3>按你原来复盘表的分类</h3><p class="small muted">由上面的回答自动推出，可以和过去 136 笔直接比。</p><dl class="kv"><dt>出场方式</dt><dd>${esc(cl.出场方式)}</dd><dt>止损类型</dt><dd>${esc(cl.止损类型)}</dd><dt>扛单类型</dt><dd>${esc(cl.扛单类型)}</dd><dt>交易类型</dt><dd>${esc(cl.交易类型)}</dd></dl>${nav(s)}</section>`}
+    <section class="card"><h3>按你原来复盘表的分类</h3><p class="small muted">由上面的回答自动推出，只用来认出旧模式（保本出场、扛单、错误盈利等）。</p><dl class="kv"><dt>出场方式</dt><dd>${esc(cl.出场方式)}</dd><dt>止损类型</dt><dd>${esc(cl.止损类型)}</dd><dt>扛单类型</dt><dd>${esc(cl.扛单类型)}</dd><dt>交易类型</dt><dd>${esc(cl.交易类型)}</dd></dl>${nav(s)}</section>`}
   if(s===5){const hints=lessonHints(t,w);const cm=(APP.P.commitments||[]).map((c,i)=>[String(i),c&&c.text]).filter(x=>x[1]);
     body=`<section class="card"><h2>下一笔要做的一个动作</h2>${cm.length?`<div class="f">这笔违反了你的哪条承诺？（可多选，没有就不点）${multi('wcm',cm.map(x=>[x[0],(+x[0]+1)+'. '+x[1]]),w.commitBroken,()=>'n')}</div>`:''}<p class="small muted">点一个建议，或者自己写一句。</p><div class="seg">${hints.map(h=>`<button type="button" data-act="wn" data-v="${esc(h[0])}">${esc(h[0])}</button>`).join('')}</div><label class="f wide">这笔的教训（想写多少写多少）<textarea id="w_lesson" class="grow" data-w="lesson" rows="4" placeholder="${esc(hints[0][0])}">${esc(w.lesson)}</textarea></label><label class="f wide">下一笔要做的动作（想写多少写多少）<textarea id="w_next" class="grow" data-w="next" rows="4" placeholder="${esc(hints[0][1])}">${esc(w.next)}</textarea></label><div class="btns full"><button type="button" class="btn sec" data-act="wizPrev">上一步</button><button type="button" class="btn go" data-act="wizDone">完成复盘</button></div></section>`}
   return head+body;
@@ -1127,7 +1145,7 @@ function whyBad(t,w){const r=[];const c=wizChecks(t,w);tradeHL(Object.assign({},
   if(w.exitWhy&&w.exitWhy!=='plan')r.push('出场不是按计划：'+(EXITWHY.find(x=>x[0]===w.exitWhy)||['',''])[1]);return r}
 function wizDone(){const w=APP.wiz,t=APP.T.find(x=>x.id===w.id);if(!t)return;try{localStorage.removeItem('tj_wiz_'+w.id)}catch(e){}const g=gradeOf(t,w);const P=APP.P;
   t.checks=g.checks;t.emotion=clone(w.emo);
-  t.review=Object.assign(t.review||{},{v:2,exec:{followEntry:w.followEntry,stopAtOpen:t.open?t.open.stopAtOpen:null,sizeOk:sizeOk(t),followExit:w.exitWhy==='plan'},realTriggers:w.real.slice(),exitWhy:w.exitWhy,smoves:w.smoves.slice(),beReached:w.beReached,stopHit:w.stopHit,floatMax:w.floatMax,floatActs:w.floatActs.slice(),holdOther:w.holdOther.slice(),afterClose:w.afterClose.slice(),commitBroken:w.commitBroken.slice(),
+  t.review=Object.assign(t.review||{},{v:2,exec:{followEntry:w.followEntry,stopAtOpen:t.open?t.open.stopAtOpen:null,sizeOk:sizeOk(t),followExit:w.exitWhy==='plan'},realTriggers:w.real.slice(),exitWhy:w.exitWhy,smoves:w.smoves.slice(),beReached:w.beReached,stopHit:w.stopHit,floatMax:w.floatMax,floatActs:w.floatActs.slice(),holdOther:w.holdOther.slice(),afterClose:w.afterClose.slice(),afterThink:(w.afterThink||[]).slice(),afterMove:w.afterMove||null,commitBroken:w.commitBroken.slice(),
     grade:g.key,R:g.R,lesson:w.lesson.trim(),next:w.next.trim(),doneAt:now()});
   t.classification=classify(t,g.key);t.status='reviewed';
   ['addLoss','addEarly','moveStop','stopBeyond','cancelStop','transfer','stopHeld','badState'].filter(k=>g.checks[k]).forEach(r=>addViolation(r,t.id,true));
@@ -1161,7 +1179,7 @@ function viewProgress(){const P=APP.P;const pr=realTrades().filter(inPractice);c
   <section class="card"><h3>每条硬线破了几次</h3>${[1,2,3,4,5,6].map(n=>`<div class="wf"><span>${n}. ${esc(hlText(n))}</span><span>${hlCount[n-1]?`<span class="chip red">${hlCount[n-1]} 笔</span>`:'<span class="chip grn">没有</span>'}</span></div>`).join('')}</section>
   <section class="card"><h3>结果（按 R 算，R = 那一笔事先定的最多亏损）</h3><div class="stats"><div>合计<b>${rS(m.sumR)}</b></div><div>平均每笔<b>${rS(m.avgR)}</b></div><div>赚 / 亏<b>${m.wins} / ${m.losses}</b></div></div><p class="small muted">这里故意不显示赚了多少 u。不看 u，就没有数字拿去算“能赚多少、能还多少”。</p></section>
   <section class="card"><h3>做得好的地方</h3><div class="stats"><div>持仓中忍住的冲动<b>${urges} 次</b></div><div>其中“在算数”<b>${calcU} 次</b></div><div>主动承认<b>${selfN} 次</b></div></div><p class="small muted">点了“我想……”按钮就算忍住一次。主动承认比隐瞒好得多。</p></section>
-  <section class="card"><h3>最近 14 天的心情</h3>${moodBars}<div class="stats"><div>记了<b>${es.length} 次</b></div><div>很想交易<b>${cnt(e=>e.q&&e.q.tradeUrge==='2')} 次</b></div><div>算过数<b>${cnt(e=>e.q&&e.q.calc==='1')} 次</b></div><div>想入金<b>${cnt(e=>e.q&&e.q.depositUrge==='1')} 次</b></div><div>没睡够<b>${cnt(e=>e.q&&e.q.sleep==='0')} 次</b></div></div></section>`}
+  <section class="card"><h3>最近 14 天的心情</h3>${moodBars}<div class="stats"><div>记了<b>${es.length} 次</b></div><div>很想交易<b>${cnt(e=>e.q&&e.q.tradeUrge==='2')} 次</b></div><div>有幻想、算数<b>${cnt(hasFant)} 次</b></div><div>念头之后开了仓<b>${cnt(e=>(e.fantAct||[]).some(k=>k==='opened'||k==='bigger'))} 次</b></div><div>想入金<b>${cnt(e=>e.q&&e.q.depositUrge==='1')} 次</b></div><div>没睡够<b>${cnt(e=>e.q&&e.q.sleep==='0')} 次</b></div></div></section>`}
 
 /* ---------- 周复盘 ---------- */
 const WQ=[['kept','这周哪几笔守住了 6 条硬线？'],['why','没守住的那几笔，当时怎么想的？'],['q5','下周只改一件事，是什么？']];
@@ -1171,7 +1189,7 @@ function weekFacts(list,viol){const row=(label,arr)=>`<div class="wf"><span>${la
   return `<div class="wfs">${[1,2,3,4,5,6].map(n=>row(n+'. '+esc(hlText(n)),list.filter(t=>tradeHL(t).includes(n)))).join('')}</div><p class="small muted">本周没守住全部硬线的：${bad.length?bad.map(t=>'#'+t.no).join('、'):'没有'}；破线记录 ${viol.length} 次（主动承认 ${viol.filter(v=>v.rule==='self').length} 次）。</p>`}
 function onePage(k,list,viol){const P=APP.P;const dep=(P.deposits||[]).filter(d=>weekKey(d.t)===k).length+list.filter(t=>(t.checks||{}).transfer).length;const days=Object.keys(APP.D).filter(x=>weekKey(Date.parse(x+'T12:00:00+08:00'))===k);const es=days.flatMap(x=>APP.D[x].entries||[]);
   const clean=list.filter(t=>tradeHL(t).length===0).length;const w=APP.W[k]||{answers:{}};
-  return `<div class="onepage"><p><b>${k} 这一周</b></p><ul><li>平仓 ${list.length} 笔，守住全部 6 条硬线 ${clean} 笔</li><li>破线 ${viol.length} 次${viol.length?'：'+[...new Set(viol.map(v=>v.hl?'硬线 '+v.hl:'主动承认'))].join('、'):''}</li><li>入金或转钱：${dep?`<b class="stop">${dep} 次</b>`:'没有'}</li><li>连续守住 ${P.cleanCount||0} 笔；每笔最多亏 ${P.riskU||1} u</li><li>${P.lockUntil>now()?'现在停到 '+bj(P.lockUntil).str:'现在没有被停'}</li><li>记心情 ${days.length} 天；很想交易 ${es.filter(e=>e.q&&e.q.tradeUrge==='2').length} 次；算过数 ${es.filter(e=>e.q&&e.q.calc==='1').length} 次；想入金 ${es.filter(e=>e.q&&e.q.depositUrge==='1').length} 次</li>${w.answers&&w.answers.q5?`<li>下周只改一件事：${esc(w.answers.q5)}</li>`:''}</ul></div>`}
+  return `<div class="onepage"><p><b>${k} 这一周</b></p><ul><li>平仓 ${list.length} 笔，守住全部 6 条硬线 ${clean} 笔</li><li>破线 ${viol.length} 次${viol.length?'：'+[...new Set(viol.map(v=>v.hl?'硬线 '+v.hl:'主动承认'))].join('、'):''}</li><li>入金或转钱：${dep?`<b class="stop">${dep} 次</b>`:'没有'}</li><li>连续守住 ${P.cleanCount||0} 笔；每笔最多亏 ${P.riskU||1} u</li><li>${P.lockUntil>now()?'现在停到 '+bj(P.lockUntil).str:'现在没有被停'}</li><li>记心情 ${days.length} 天；很想交易 ${es.filter(e=>e.q&&e.q.tradeUrge==='2').length} 次；有幻想、算数 ${es.filter(hasFant).length} 次（念头之后开仓 ${es.filter(e=>(e.fantAct||[]).includes('opened')).length} 次）；保本或小赚被打掉后追进去 ${list.filter(t=>t.chaseAfterBE).length} 笔；想入金 ${es.filter(e=>e.q&&e.q.depositUrge==='1').length} 次</li>${w.answers&&w.answers.q5?`<li>下周只改一件事：${esc(w.answers.q5)}</li>`:''}</ul></div>`}
 function viewWeek(){const k=APP.weekKey||weekKey(now());const w=APP.W[k]||(APP.W[k]={k,answers:{},ai:'',doneAt:0});
   const list=realTrades().filter(t=>t.close&&weekKey(t.close.t)===k&&inPractice(t));const m=metrics(list);const viol=APP.P.violations.filter(v=>weekKey(v.t)===k&&v.hl!=null&&!v.pre);
   return `<section class="card"><div class="btns"><button type="button" class="btn sec" data-act="tab" data-v="today">返回</button></div><h2>本周复盘 · ${k}</h2><p class="small muted">只数守没守规则，不算“本来能赚多少”。下面的数字页面已经算好了。${(()=>{const pre=realTrades().filter(t=>t.close&&weekKey(t.close.t)===k&&!inPractice(t));return pre.length?`练习开始前开的单不计入：${pre.map(t=>'#'+t.no).join('、')}。`:''})()}</p>
@@ -1187,7 +1205,7 @@ function weekPrompt(){const k=APP.weekKey||weekKey(now());const w=APP.W[k]||{ans
   const prompt=`你是一位严格但友善的交易纪律教练。只评价过程和规则遵守，不预测行情，不给买卖或方向建议。不要提历史最高权益、离回本还差多少、“本来能赚多少”。主动承认违规和忍住冲动要表扬。不说赚了多少 u、能还多少钱，结果只用 R。不鼓励任何入金。
 背景：${PROFILE_SUMMARY}
 规则：${RULES_TEXT}
-本周（${k}）数据：${JSON.stringify({trades:list.map(tradeBrief),metrics:{n:m.n,allHardLinesKept:m.allPass,gateRate:m.gateRate,sumR:m.sumR,avgR:m.avgR,urgesResisted:m.urges,riskU:APP.P.riskU||1,cleanStreak:APP.P.cleanCount||0},hardLines:list.map(t=>({no:t.no,broken:tradeHL(t)})),violations:APP.P.violations.filter(v=>weekKey(v.t)===k).map(v=>v.rule),moods:Object.keys(APP.D).filter(x=>weekKey(Date.parse(x+'T12:00:00+08:00'))===k).map(x=>({day:x,entries:(APP.D[x].entries||[]).map(e=>({mood:e.mood,q:e.q,text:e.text}))})),answers:w.answers})}
+本周（${k}）数据：${JSON.stringify({trades:list.map(tradeBrief),metrics:{n:m.n,allHardLinesKept:m.allPass,gateRate:m.gateRate,sumR:m.sumR,avgR:m.avgR,urgesResisted:m.urges,riskU:APP.P.riskU||1,cleanStreak:APP.P.cleanCount||0},hardLines:list.map(t=>({no:t.no,broken:tradeHL(t)})),violations:APP.P.violations.filter(v=>weekKey(v.t)===k).map(v=>v.rule),moods:Object.keys(APP.D).filter(x=>weekKey(Date.parse(x+'T12:00:00+08:00'))===k).map(x=>({day:x,entries:(APP.D[x].entries||[]).map(e=>({mood:e.mood,q:e.q,fantasies:fantTypes(e).map(f=>feelL(FANT,f)),afterFantasy:(e.fantAct||[]).map(f=>feelL(FANTACT,f)),text:e.text}))})),answers:w.answers})}
 用简体中文，按下面格式，不超过 260 字：
 本周守住硬线的情况：（用数字，点名破了第几条）
 最大的进步：
@@ -1417,6 +1435,8 @@ const A={
   wfa:b=>{toggle(APP.wiz.floatActs,b.dataset.v);render()},
   who:b=>{exclusiveToggle(APP.wiz,'holdOther',b.dataset.v);render()},
   wac:b=>{exclusiveToggle(APP.wiz,'afterClose',b.dataset.v);render()},
+  wat:b=>{APP.wiz.afterThink=APP.wiz.afterThink||[];exclusiveToggle(APP.wiz,'afterThink',b.dataset.v);render()},
+  wam:b=>{APP.wiz.afterMove=APP.wiz.afterMove===b.dataset.v?null:b.dataset.v;render()},
   wcm:b=>{toggle(APP.wiz.commitBroken,b.dataset.v);render()},
   we:b=>{const a=APP.wiz.emo[b.dataset.p];const i=a.indexOf(b.dataset.v);if(i>=0)a.splice(i,1);else a.push(b.dataset.v);render()},
   wl:b=>{APP.wiz.emo.level=+b.dataset.v;render()},
@@ -1464,11 +1484,11 @@ const A={
     if(f.hl==='other'){if(!note){toast('写一句是什么违规');return}addViolation('selfOther',null,true,{note});saveP();APP.selfForm=null;toast('记下了，不用停。主动承认比隐瞒好得多');render();return}
     addViolation('self',null,true,{hl:f.hl,note});saveP();APP.selfForm=null;toast(f.hl===6?'记下了。这轮练习结束，停 30 天。主动承认比隐瞒好得多':'记下了。按规则停 7 天；主动承认比隐瞒好得多');render()},
   stepUp:()=>{if(!canStepUp())return;const P=APP.P;P.riskU=(P.riskU||1)+1;P.cleanCount=0;(P.stepUps=P.stepUps||[]).push({t:now(),riskU:P.riskU});saveP();toast(`已改成每笔最多亏 ${P.riskU} u`);render()},
-  moodPick:b=>{const f=moodDraft(),g=b.dataset.grp,v=b.dataset.v;if(g==='mood')f.mood=f.mood===v?null:v;else if(g==='emo'){const i=f.emo.indexOf(v);if(i>=0)f.emo.splice(i,1);else f.emo.push(v)}else if(g.startsWith('q:')){const k=g.slice(2);f.q[k]=f.q[k]===v?null:v}APP.moodMsg=null;render()},
+  moodPick:b=>{const f=moodDraft(),g=b.dataset.grp,v=b.dataset.v;if(g==='fant'||g==='fantAct'){f[g]=f[g]||[];const a=f[g];const i=a.indexOf(v);if(v==='none'){f[g]=i>=0?[]:['none'];if(g==='fant')f.fantAct=[]}else{if(i>=0)a.splice(i,1);else{a.push(v);const j=a.indexOf('none');if(j>=0)a.splice(j,1)}}}else if(g==='mood')f.mood=f.mood===v?null:v;else if(g==='emo'){const i=f.emo.indexOf(v);if(i>=0)f.emo.splice(i,1);else f.emo.push(v)}else if(g.startsWith('q:')){const k=g.slice(2);f.q[k]=f.q[k]===v?null:v}APP.moodMsg=null;render()},
   moodSave:()=>{const f=moodDraft();const text=(f.text||'').trim();const q={};Object.entries(f.q).forEach(([k,v])=>{if(v!=null)q[k]=v});
-    if(!f.mood&&!f.emo.length&&!text&&!Object.keys(q).length){toast('先点一个，或者写一句话');return}
-    const k=todayKey();const d=APP.D[k]||(APP.D[k]={k,entries:[]});const e={t:now(),mood:f.mood,emo:f.emo.slice(),q,text};d.entries=(d.entries||[]).concat([e]);saveD(k);
-    const tips=[];if(q.depositUrge==='1')tips.push('想入金是这个循环里最稳定的一环。今天跟你信任的那个人说一声。');if(q.calc==='1')tips.push('算数会让你在脑子里先把钱“拿到手”。记下来就好，不据此开单。');if(q.drink==='1'||q.sleep==='0')tips.push('状态不对：今天只平仓，不开仓。');if(q.tradeUrge==='2')tips.push('很想交易的时候，先看一遍 6 条硬线，再决定。');
+    const fant=(f.fant||[]).slice(),fantAct=(f.fantAct||[]).slice();if(!f.mood&&!f.emo.length&&!text&&!Object.keys(q).length&&!fant.length){toast('先点一个，或者写一句话');return}
+    const k=todayKey();const d=APP.D[k]||(APP.D[k]={k,entries:[]});const e={t:now(),mood:f.mood,emo:f.emo.slice(),q,fant,fantAct,text};d.entries=(d.entries||[]).concat([e]);saveD(k);
+    const tips=[];if(fant.includes('missed')||fant.includes('ifOnly'))tips.push('没拿到的钱不是你的，也不是亏的。“要是当时”的数，算得越细，下一单越想追。');if(fantAct.includes('opened')||fantAct.includes('bigger'))tips.push('念头之后开的仓，复盘时要特别看一眼。');if(fant.includes('spend')||fant.includes('future'))tips.push('算数会让你在脑子里先把钱“拿到手”。记下来就好，不据此开单。');if(q.depositUrge==='1')tips.push('想入金是这个循环里最稳定的一环。今天跟你信任的那个人说一声。');if(q.drink==='1'||q.sleep==='0')tips.push('状态不对：今天只平仓，不开仓。');if(q.tradeUrge==='2')tips.push('很想交易的时候，先看一遍 6 条硬线，再决定。');
     APP.moodF=null;APP.moodMsg='记下了（'+bj(e.t).str.slice(6)+'）。'+tips.slice(0,2).join(' ');render()},
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b||b.disabled)return;const f=A[b.dataset.act];if(f)f(b,e)});
