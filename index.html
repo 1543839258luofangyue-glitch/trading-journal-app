@@ -370,9 +370,10 @@ function msgFor(path,data){const rel=path.slice(REC.length+1);
   if(rel.startsWith('days/'))return '日志：心情 '+rel.slice(5,-5);if(rel.startsWith('weeks/'))return '日志：周复盘 '+rel.slice(6,-5);if(rel.startsWith('screenshots/'))return '日志：截图';if(rel.startsWith('exports/'))return '日志：交易所导出';return '日志：'+rel}
 async function getRemoteJSON(path){const r=await gh('GET',contentsURL(path)+'?ref='+encodeURIComponent(CFG.branch));if(r.status===404)return null;if(!r.ok)throw await ghErr(r);const j=await r.json();return {sha:j.sha,data:unb64json(j.content||'')}}
 function mergeProfile(remote,local){const m=Object.assign({},remote,local);const uniq=(a,key)=>{const s=new Map();a.forEach(x=>s.set(key(x),x));return [...s.values()]};
-  m.violations=uniq([...(remote.violations||[]),...(local.violations||[])],v=>v.t+'|'+v.rule+'|'+v.trade).sort((a,b)=>a.t-b.t).slice(-300);
+  m.voided=uniq([...(remote.voided||[]),...(local.voided||[])],x=>x.key);const vd=new Set(m.voided.map(x=>x.key));
+  m.violations=uniq([...(remote.violations||[]),...(local.violations||[])],v=>v.t+'|'+v.rule+'|'+v.trade).filter(v=>!vd.has(vKey(v))).sort((a,b)=>a.t-b.t).slice(-300);
   m.deposits=uniq([...(remote.deposits||[]),...(local.deposits||[])],d=>d.t).sort((a,b)=>a.t-b.t).slice(-100);
-  ['seq','paperPlans','lastLossAt','lastBigWinAt','externalSeenAt','weekStopUntil','depositLockUntil','lockUntil'].forEach(k=>m[k]=Math.max(remote[k]||0,local[k]||0));if(m.lockUntil&&m.lockUntil===(remote.lockUntil||0)&&remote.lockReason)m.lockReason=remote.lockReason;{const ps=[remote.practiceStart,local.practiceStart].filter(x=>x>0);m.practiceStart=ps.length?Math.min(...ps):0}
+  ['seq','paperPlans','lastLossAt','lastBigWinAt','externalSeenAt','weekStopUntil','depositLockUntil','lockUntil'].forEach(k=>m[k]=Math.max(remote[k]||0,local[k]||0));if(m.lockUntil&&m.lockUntil===(remote.lockUntil||0)&&remote.lockReason)m.lockReason=remote.lockReason;if(vd.size){const lk=lockFrom(m.violations);m.lockUntil=lk.until;m.lockReason=lk.reason}{const ps=[remote.practiceStart,local.practiceStart].filter(x=>x>0);m.practiceStart=ps.length?Math.min(...ps):0}
   if(remote.lastClose&&(!local.lastClose||remote.lastClose.t>local.lastClose.t))m.lastClose=remote.lastClose;return m}
 function mergeDoc(path,remote,local){if(path===PATH.P)return mergeProfile(remote||{},local||{});if(path.startsWith(REC+'/days/')&&remote&&local){const mm=new Map();[...(remote.entries||[]),...(local.entries||[])].forEach(e=>mm.set(e.t,e));return Object.assign({},remote,local,{entries:[...mm.values()].sort((a,b)=>a.t-b.t)})}return (remote&&(remote.updatedAt||0)>(local.updatedAt||0))?remote:local}
 async function pushJSON(path,c){const body={message:msgFor(path,c.data),content:b64json(c.data),branch:CFG.branch};if(c.sha)body.sha=c.sha;
@@ -451,13 +452,16 @@ setInterval(()=>{if(SYNC.q.length&&!SYNC.busy)flush()},60e3);
 /* ================= 日内与阶段 ================= */
 function rollDay(){const d=bj(now()).day;const P=APP.P;if(P.day!==d){P.day=d;P.dayTrades=0;P.dayLossPct=0;P.dayConsec=0;P.dayStopped=false}}
 const recentViol=()=>APP.P.violations.filter(v=>now()-v.t<7*DAY&&v.hl!=null&&!v.pre);
-function addViolation(rule,tradeId,red){const P=APP.P,t=now();if(tradeId&&P.violations.some(v=>v.trade===tradeId&&v.rule===rule))return false;
-  const tr=tradeId?APP.T.find(x=>x.id===tradeId):null;const hl=HLK[rule];const counts=!tr||inPractice(tr);
-  const v={t,rule,trade:tradeId||null};if(hl!=null)v.hl=hl;if(!counts)v.pre=true;P.violations.push(v);P.violations=P.violations.slice(-300);
+function addViolation(rule,tradeId,red,opts){const P=APP.P,t=now();if(tradeId&&P.violations.some(v=>v.trade===tradeId&&v.rule===rule))return false;
+  const tr=tradeId?APP.T.find(x=>x.id===tradeId):null;const hl=opts&&opts.hl!=null?opts.hl:HLK[rule];const counts=!tr||inPractice(tr);
+  const v={t,rule,trade:tradeId||null};if(hl!=null)v.hl=hl;if(!counts)v.pre=true;if(opts&&opts.note)v.note=opts.note;P.violations.push(v);P.violations=P.violations.slice(-300);
   if(!counts||hl==null)return true;
   P.dayStopped=true;P.cleanCount=0;const until=t+(hl===6?30:7)*DAY;
-  if(until>(P.lockUntil||0)){P.lockUntil=until;P.lockReason=hl?`破了硬线 ${hl}（${hlText(hl)}）`:'主动承认了一次违规'}
+  if(until>(P.lockUntil||0)){P.lockUntil=until;P.lockReason=lockText(v)}
   return true}
+const vKey=v=>v.t+'|'+v.rule+'|'+v.trade;
+const lockText=v=>(v.rule==='self'?'主动承认：':'')+(v.hl?`破了硬线 ${v.hl}（${hlText(v.hl)}）`:'一次违规');
+function lockFrom(vs){let until=0,reason='';(vs||[]).forEach(v=>{if(v.hl==null||v.pre)return;const u=v.t+(v.hl===6?30:7)*DAY;if(u>until){until=u;reason=lockText(v)}});return {until,reason}}
 const inPractice=t=>{const P=APP.P;const o=t&&(t.open&&t.open.t!=null?t.open.t:t.createdAt);return !!(P.practiceStart&&o!=null&&o>=P.practiceStart)};
 const canStepUp=()=>(APP.P.cleanCount||0)>=30;
 function migratePractice(){const P=APP.P;if(P.practiceStart)return;P.practiceStart=now();if(!(P.riskU>0))P.riskU=1;P.cleanCount=0;P.lockUntil=0;P.lockReason='';saveP();render()}
@@ -843,8 +847,13 @@ function viewMood(){const tn=now();const ks=Object.keys(APP.D).sort().reverse();
 function viewRules(){const P=APP.P;let h=subHead('6 条硬线和承诺','')+practiceCard();
   if(canStepUp())h+=`<section class="card good"><h3>连续守住 30 笔了</h3><p class="small">先和你信任的那个人看过记录、商量好，再决定要不要把每笔最多亏从 ${P.riskU||1} u 加到 ${(P.riskU||1)+1} u。按守住的笔数加，不按赚了多少加。不加也完全可以。</p><button type="button" class="btn sec" data-act="stepUp">已经和他商量好，改成 ${(P.riskU||1)+1} u</button></section>`;
   h+=commitCard();
-  h+=`<section class="card"><h3>如实记下</h3><p class="small muted">主动承认照样要停，但比隐瞒好得多。</p><div class="btns"><button type="button" class="btn sec" data-act="selfViol">主动承认一次违规</button><button type="button" class="btn sec" data-act="depOpen">记录一次入金（破硬线 6）</button></div>${APP.depForm?depForm():''}</section>`;
+  h+=`<section class="card"><h3>如实记下</h3><p class="small muted">主动承认照样要停，但比隐瞒好得多。</p><div class="btns"><button type="button" class="btn sec" data-act="selfViol">主动承认一次违规</button><button type="button" class="btn sec" data-act="depOpen">记录一次入金（破硬线 6）</button></div>${APP.selfForm?selfForm():''}${APP.depForm?depForm():''}</section>`;
   return h}
+function selfForm(){const f=APP.selfForm;
+  return `<div class="evform"><h4>主动承认一次违规</h4><div class="f">破的是哪一条？<div class="seg">${[1,2,3,4,5,6].map(k=>`<button type="button" data-act="selfPick" data-v="${k}" aria-pressed="${f.hl===k}">硬线 ${k}</button>`).join('')}<button type="button" data-act="selfPick" data-v="0" aria-pressed="${f.hl===0}">说不清</button></div></div>
+  <label class="f wide">怎么回事（可不填）<textarea class="grow" data-self="note" rows="3">${esc(f.note||'')}</textarea></label>
+  <p class="small stop">${f.hl===6?'记下后这轮练习结束，停 30 天。':'记下后停 7 天，连续守住的笔数清零。'}主动承认比隐瞒好得多。</p>
+  <div class="btns full"><button type="button" class="btn red" data-act="selfSave">确认记下</button><button type="button" class="btn sec" data-act="selfCancel">取消</button></div></div>`}
 function viewRecords(){const list=APP.T.slice(0,APP.recN||30);
   return subHead('全部记录',APP.T.length?`共 ${APP.T.length} 笔，最新的在上面`:'')+`<section class="card">${list.length?`<div class="list">${list.map(tradeRow).join('')}</div>${APP.T.length>list.length?`<button type="button" class="btn sec" data-act="recMore">再显示 30 笔</button>`:''}`:`<div class="empty"><p class="muted">还没有记录。下单前点“下单前检查”，或者平仓后点“记一笔”放一张截图，第一条就有了。</p></div>`}</section>`}
 function viewToday(){
@@ -1435,7 +1444,11 @@ const A={
   syncNow:async()=>{if(!cfgOk())return;toast('正在同步…');lastPull=now();await pull();await flush();render();toast(SYNC.err?errText(SYNC.err):'同步好了')},
   loadReport:()=>loadReport(),
   copySup:()=>copyText(`请读我的 GitHub 私有仓库 ${CFG.owner}/${CFG.repo}。先看 README.md 和 AI_SUPERVISOR.md，了解我以前的交易和规则；再看 4_进步报告/最新周报.md 和 3_现在的记录/，告诉我最近有没有变好、有没有在重复以前的错误。`),
-  selfViol:()=>{addViolation('self',null,false);saveP();toast('主动承认记下了。按规则停 7 天；主动承认比隐瞒好得多');render()},
+  selfViol:()=>{APP.selfForm=APP.selfForm?null:{hl:null,note:''};render()},
+  selfPick:b=>{APP.selfForm.hl=+b.dataset.v;render()},
+  selfCancel:()=>{APP.selfForm=null;render()},
+  selfSave:()=>{const f=APP.selfForm;if(!f)return;if(f.hl==null){toast('先选破的是哪一条（说不清也可以）');return}
+    addViolation('self',null,true,{hl:f.hl,note:(f.note||'').trim()});saveP();APP.selfForm=null;toast(f.hl===6?'记下了。这轮练习结束，停 30 天。主动承认比隐瞒好得多':'记下了。按规则停 7 天；主动承认比隐瞒好得多');render()},
   stepUp:()=>{if(!canStepUp())return;const P=APP.P;P.riskU=(P.riskU||1)+1;P.cleanCount=0;(P.stepUps=P.stepUps||[]).push({t:now(),riskU:P.riskU});saveP();toast(`已改成每笔最多亏 ${P.riskU} u`);render()},
   moodPick:b=>{const f=moodDraft(),g=b.dataset.grp,v=b.dataset.v;if(g==='mood')f.mood=f.mood===v?null:v;else if(g==='emo'){const i=f.emo.indexOf(v);if(i>=0)f.emo.splice(i,1);else f.emo.push(v)}else if(g.startsWith('q:')){const k=g.slice(2);f.q[k]=f.q[k]===v?null:v}APP.moodMsg=null;render()},
   moodSave:()=>{const f=moodDraft();const text=(f.text||'').trim();const q={};Object.entries(f.q).forEach(([k,v])=>{if(v!=null)q[k]=v});
@@ -1454,6 +1467,7 @@ document.addEventListener('input',e=>{const el=e.target;
   if(el.dataset.paste){APP.paste[el.dataset.paste]=el.value}
   if(el.dataset.cfg){APP.cfgDraft=APP.cfgDraft||{};APP.cfgDraft[el.dataset.cfg]=el.value}
   if(el.dataset.dep&&APP.depForm){APP.depForm[el.dataset.dep]=el.value}
+  if(el.dataset.self&&APP.selfForm){APP.selfForm[el.dataset.self]=el.value}
   if(el.dataset.cm!=null&&APP.cmEdit){APP.cmEdit[+el.dataset.cm]=el.value}
   if(el.dataset.g){const f=gateForm();f[el.dataset.g]=el.type==='checkbox'?el.checked:el.value;if(['entry','stop','target','side'].includes(el.dataset.g))rrLiveEl()}
   if(el.dataset.w&&APP.wiz)APP.wiz[el.dataset.w]=el.value;
