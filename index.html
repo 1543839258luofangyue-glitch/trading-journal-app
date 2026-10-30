@@ -863,7 +863,7 @@ function viewHold(){const opens=openTrades();let h=subHead('持仓中',opens.len
 function viewMood(){const tn=now();const ks=Object.keys(APP.D).sort().reverse();const recent=ks.flatMap(k=>(APP.D[k].entries||[]).slice().reverse().map(e=>({k,e}))).slice(0,15);
   return subHead('心情和念头','一天几次都行，没交易的日子也记；算数、幻想都算')+moodCard()+
   `<section class="card"><h3>刚看了直播或群消息？</h3><p class="small muted">点一下，30 分钟内下单前检查会提醒你先等等。</p><button type="button" class="btn sec" data-act="extSeen">我刚看了直播 / 群消息</button>${APP.P.externalSeenAt&&tn-APP.P.externalSeenAt<30*MIN?`<p class="small wait">还剩 ${Math.ceil((APP.P.externalSeenAt+30*MIN-tn)/MIN)} 分钟。</p>`:''}</section>`+
-  `<section class="card"><h3>最近记的</h3>${recent.length?`<div class="evs">${recent.map(({k,e})=>`<div class="ev feel"><span class="mono small muted">${k.slice(5)} ${bj(e.t).str.slice(6)}</span><span class="small">${esc(moodText(e))}${(e.shots||[]).length?`<span class="ftimgs">${e.shots.map(x=>`<img data-img="${esc(x.p)}" data-act="imgZoom" data-p="${esc(x.p)}" alt="${esc(feelL(MKIND,x.kind))}">`).join('')}</span>`:''}</span><span></span></div>`).join('')}</div>`:'<p class="muted small">还没有记录。</p>'}<p class="small muted">每周的心情统计在“进步”页。</p></section>`}
+  `<section class="card"><h3>最近记的</h3>${recent.length?`<div class="evs">${recent.map(({k,e})=>`<div class="ev feel"><span class="mono small muted">${k.slice(5)} ${bj(e.t).str.slice(6)}</span><span class="small">${esc(moodText(e))}${e.editedAt?' <span class="muted">（改过）</span>':''}${(e.shots||[]).length?`<span class="ftimgs">${e.shots.map(x=>`<img data-img="${esc(x.p)}" data-act="imgZoom" data-p="${esc(x.p)}" alt="${esc(feelL(MKIND,x.kind))}">`).join('')}</span>`:''}</span><span><button type="button" class="btn sec" data-act="moodEdit" data-k="${k}" data-t="${e.t}" style="padding:4px 10px;font-size:13px">修改</button></span></div>`).join('')}</div>`:'<p class="muted small">还没有记录。</p>'}<p class="small muted">每周的心情统计在“进步”页。</p></section>`}
 function viewRules(){const P=APP.P;let h=subHead('6 条硬线和承诺','')+practiceCard();
   if(canStepUp())h+=`<section class="card good"><h3>连续守住 30 笔了</h3><p class="small">先和你信任的那个人看过记录、商量好，再决定要不要把每笔最多亏从 ${P.riskU||1} u 加到 ${(P.riskU||1)+1} u。按守住的笔数加，不按赚了多少加。不加也完全可以。</p><button type="button" class="btn sec" data-act="stepUp">已经和他商量好，改成 ${(P.riskU||1)+1} u</button></section>`;
   h+=commitCard();
@@ -910,7 +910,7 @@ function commitCard(){const P=APP.P;const cm=(P.commitments||[]).filter(c=>c&&c.
   return `<section class="card"><h3>我的承诺</h3>${cm.length?`<div class="promise"><ol>${cm.map(c=>`<li>${esc(c.text)}</li>`).join('')}</ol></div>`:'<p class="small muted">还没写。写下最多 3 条你自己愿意守的承诺，下单前检查时会先看到它们。</p>'}<button type="button" class="btn sec" data-act="cmEditOpen">${cm.length?'修改':'写承诺'}</button></section>`}
 function depForm(){const f=APP.depForm;
   return `<div class="evform"><h4>记录一次入金或转钱</h4><div class="fields"><label class="f">金额多少 u<input data-dep="amount" inputmode="decimal" value="${esc(f.amount||'')}"></label></div><p class="small stop">入金破了硬线 6：这轮练习结束，停 30 天。还是要如实记，隐瞒比入金更危险。</p><div class="btns full"><button type="button" class="btn" data-act="depSave">记下</button><button type="button" class="btn sec" data-act="depCancel">取消</button></div></div>`}
-const APP_VERSION='10-29 · 14';
+const APP_VERSION='10-30 · 15';
 const SYMS=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT','DOGEUSDT'];
 function symField(src,f,id,cls){const cur=f.symbol==='OTHER'?'':(f.symbol||'');const other=!!f.symOther||!SYMS.includes(cur);const attr=src==='g'?'data-g':'data-d';
   return `<label class="f">品种<select id="${id}" class="${cls||''}" data-symsel="${src}">${SYMS.map(x=>`<option value="${x}" ${!other&&cur===x?'selected':''}>${x}</option>`).join('')}<option value="OTHER" ${other?'selected':''}>其他品种（自己填）</option></select></label>${other?`<label class="f">填品种名<input ${attr}="symbol" value="${esc(cur)}" placeholder="例如 HYPEUSDT" autocapitalize="characters" autocomplete="off"></label>`:''}${src==='g'&&cur!=='BTCUSDT'?`<p class="small stop wide">硬线 2：练习期只做 BTCUSDT，选别的品种会是红灯。</p>`:''}`}
@@ -928,25 +928,25 @@ const todayKey=()=>bj(now()).day;
 function moodText(e){const a=[];if(e.mood)a.push('心情'+(MOOD.find(x=>x[0]===e.mood)||['',''])[1]);if((e.emo||[]).length)a.push(e.emo.map(k=>feelL(FEEL,k)).join('、'));const q=e.q||{};if(q.tradeUrge==='2')a.push('很想交易');else if(q.tradeUrge==='1')a.push('有点想交易');{const ft=fantTypes(e);if(ft.length)a.push('念头：'+ft.map(k=>feelL(FANT,k)).join('、'));if((e.fantAct||[]).length)a.push('之后：'+e.fantAct.map(k=>feelL(FANTACT,k)).join('、'))}if((e.shots||[]).length)a.push('图片 '+e.shots.length+' 张');if(q.depositUrge==='1')a.push('想入金');if(q.sleep==='0')a.push('没睡够');if(q.drink==='1')a.push('喝了酒');if(e.text)a.push('“'+e.text+'”');return a.join(' · ')}
 function moodCard(){const k=todayKey();const d=APP.D[k];const es=(d&&d.entries)||[];const f=moodDraft();const msg=APP.moodMsg;
   const chip=(grp,v,l,on)=>`<button type="button" data-act="moodPick" data-grp="${grp}" data-v="${v}" aria-pressed="${on}">${l}</button>`;
-  return `<section class="card"><h3>心情和念头（随时记，一天几次都行）</h3>${es.length?`<p class="small muted">今天已经记了 ${es.length} 次，最近一次 ${bj(es[es.length-1].t).str.slice(6)}：${esc(moodText(es[es.length-1]))}</p>`:''}
+  return `<section class="card">${f.editKey?`<h3>修改 ${f.editKey.k.slice(5)} ${bj(f.editKey.t).str.slice(6)} 那条</h3><p class="small muted">时间不变，改完点“保存修改”。新想到的事，也可以另外记一条。</p>`:`<h3>心情和念头（随时记，一天几次都行）</h3>`}${!f.editKey&&es.length?`<p class="small muted">今天已经记了 ${es.length} 次，最近一次 ${bj(es[es.length-1].t).str.slice(6)}：${esc(moodText(es[es.length-1]))}</p>`:''}
   <div class="f">现在心情<div class="seg">${MOOD.map(x=>chip('mood',x[0],x[1],f.mood===x[0])).join('')}</div></div>
   <div class="f">心里是（可多选）<div class="seg">${FEEL.map(x=>chip('emo',x[0],x[1],f.emo.includes(x[0]))).join('')}</div></div>
   ${DAYQ.map(q=>`<div class="f">${q[1]}<div class="seg">${q[2].map(x=>chip('q:'+q[0],x[0],x[1],f.q[q[0]]===x[0])).join('')}</div></div>`).join('')}
   <div class="fantbox"><div class="f"><b>脑子里出现过这些念头吗？（可多选）</b><div class="seg">${FANT.map(x=>chip('fant',x[0],x[1],(f.fant||[]).includes(x[0]))).join('')}</div></div>
   ${(f.fant||[]).some(k=>k!=='none')?`<div class="f">这个念头之后，你做了什么？（可多选）<div class="seg">${FANTACT.map(x=>chip('fantAct',x[0],x[1],(f.fantAct||[]).includes(x[0]))).join('')}</div></div>`:''}</div>
   <label class="f wide">今天发生了什么、心里在想什么（念头具体是什么也写下来，可以按话筒直接说）<textarea class="grow" data-mood="text" rows="3" placeholder="例如：中午看到涨了，想到要是上周拿住那单现在就有 3000 了，就去看盘，很想开空，后来去吃饭了">${esc(f.text)}</textarea></label>
-  <div class="f">放图片（选填）：今天的行情、K 线、账户截图，什么图都可以，可以一次放几张<button type="button" class="btn sec pickbtn" data-act="moodPickImg">＋ 放图片</button><input type="file" accept="image/*" multiple hidden data-moodfile="1">
+  <div class="f">放图片（选填）：今天的行情、K 线、账户截图，什么图都可以，可以一次放几张${(f.keep||[]).length?`<div class="small muted">原来的图片（会保留；不要的点移除）</div><div class="thumbs">${f.keep.map((x,i)=>`<div class="thumb"><img data-img="${esc(typeof x==='string'?x:x.p)}" alt="原来的图片 ${i+1}"><button type="button" data-act="moodRmKeep" data-i="${i}">移除</button></div>`).join('')}</div>`:''}<button type="button" class="btn sec pickbtn" data-act="moodPickImg">＋ 放图片</button><input type="file" accept="image/*" multiple hidden data-moodfile="1">
   ${(f.shots||[]).length?`<div class="thumbs">${f.shots.map((x,i)=>`<div class="thumb"><img src="${x.tmp}" alt="图片 ${i+1}"><select data-act-change="mkind" data-i="${i}" aria-label="图片类型">${MKIND.map(k=>`<option value="${k[0]}" ${x.kind===k[0]?'selected':''}>${k[1]}</option>`).join('')}</select><button type="button" data-act="moodRmShot" data-i="${i}">移除</button></div>`).join('')}</div>`:''}</div>
-  <button type="button" class="btn" data-act="moodSave">记下来</button>${msg?`<p class="okmsg">${esc(msg)}</p>`:''}</section>`}
+  ${f.editKey?`<div class="btns full"><button type="button" class="btn" data-act="moodSave">保存修改</button><button type="button" class="btn sec" data-act="moodEditCancel">取消修改</button></div>`:`<button type="button" class="btn" data-act="moodSave">记下来</button>`}${msg?`<p class="okmsg">${esc(msg)}</p>`:''}</section>`}
 function timeline(t){const L=[];(t.events||[]).forEach(e=>L.push(Object.assign({k:'ev'},e)));(t.urges||[]).forEach(u=>L.push({k:'urge',t:u.t,kind:u.kind}));(t.feels||[]).forEach(f=>L.push(Object.assign({k:'feel'},f)));return L.sort((a,b)=>a.t-b.t)}
-function tlLine(x){if(x.k==='ev')return evLine(x);
+function tlLine(x,oid){if(x.k==='ev')return evLine(x);
   if(x.k==='urge')return `<div class="ev"><span class="mono small muted">${bj(x.t).str.slice(6)}</span><span><b>忍住了</b> <span class="small">${esc(feelL(PANIC,x.kind))}</span></span><span class="chip grn">忍住</span></div>`;
-  return `<div class="ev feel"><span class="mono small muted">${bj(x.t).str.slice(6)}</span><span><b>感受</b> <span class="small">${esc(feelText(x))}</span>${(x.shots||[]).length?`<span class="ftimgs">${x.shots.map(p=>`<img data-img="${esc(p)}" data-act="imgZoom" data-p="${esc(p)}" alt="持仓中图片">`).join('')}</span>`:''}</span><span></span></div>`}
+  return `<div class="ev feel"><span class="mono small muted">${bj(x.t).str.slice(6)}</span><span><b>感受</b> <span class="small">${esc(feelText(x))}</span>${x.editedAt?' <span class="small muted">（改过）</span>':''}${(x.shots||[]).length?`<span class="ftimgs">${x.shots.map(p=>`<img data-img="${esc(p)}" data-act="imgZoom" data-p="${esc(p)}" alt="持仓中图片">`).join('')}</span>`:''}</span><span>${oid?`<button type="button" class="btn sec" data-act="feelEdit" data-id="${oid}" data-t="${x.t}" style="padding:4px 10px;font-size:13px">修改</button>`:''}</span></div>`}
 const feelDraft=id=>{APP.feels=APP.feels||{};const f=APP.feels[id]||(APP.feels[id]={emo:[],pnl:null,doing:[],text:'',price:'',shots:[]});f.fant=f.fant||[];f.fantAct=f.fantAct||[];return f};
 function feelForm(o){const f=feelDraft(o.id);const msg=APP.feelMsg&&APP.feelMsg.id===o.id?APP.feelMsg.text:null;
   const chip=(grp,k,l,on)=>`<button type="button" data-act="feelPick" data-id="${o.id}" data-grp="${grp}" data-v="${k}" aria-pressed="${on}">${l}</button>`;
   const fs=f.shots||[];
-  return `<div class="feelbox" data-feelbox="${o.id}"><h4>此刻的感受和想法（随时记，越及时越好）</h4>
+  return `<div class="feelbox" data-feelbox="${o.id}">${f.editT?`<h4>修改 ${bj(f.editT).str.slice(6)} 那条</h4><p class="small muted">时间不变，改完点“保存修改”。新想到的事，也可以另外记一条。</p>`:`<h4>此刻的感受和想法（随时记，越及时越好）</h4>`}
   <div class="f">现在心里是（可多选）<div class="seg">${FEEL.map(x=>chip('emo',x[0],x[1],f.emo.includes(x[0]))).join('')}</div></div>
   <div class="f">现在这笔<div class="seg">${PNLS.map(x=>chip('pnl',x[0],x[1],f.pnl===x[0])).join('')}</div></div>
   <div class="f">我现在在（可多选）<div class="seg">${DOING.map(x=>chip('doing',x[0],x[1],f.doing.includes(x[0]))).join('')}</div></div>
@@ -954,9 +954,9 @@ function feelForm(o){const f=feelDraft(o.id);const msg=APP.feelMsg&&APP.feelMsg.
   ${f.fant.length?`<div class="f">这个念头让你想做什么？（可多选）<div class="seg">${HFANTACT.map(x=>chip('fantAct',x[0],x[1],f.fantAct.includes(x[0]))).join('')}</div></div>`:''}</div>
   <label class="f wide">心里在想什么、刚才做了什么（幻想的内容、算出来的数也写下来，可以按话筒直接说）<textarea class="grow" data-feel="text" data-id="${o.id}" rows="3" placeholder="例如：干等着很无聊，一直在算到 78000 能赚多少、能还几张卡，越算越想加仓">${esc(f.text)}</textarea></label>
   <label class="f">现在价格（选填）<input data-feel="price" data-id="${o.id}" inputmode="decimal" value="${esc(f.price)}" placeholder="例如 62350"></label>
-  <div class="f">放图片（选填）：行情变化、别的周期的图、仓位截图，什么图都可以，可以一次放几张<button type="button" class="btn sec pickbtn" data-act="feelPickImg" data-id="${o.id}">＋ 放图片</button><input type="file" accept="image/*" multiple hidden data-feelfile="${o.id}">
+  <div class="f">放图片（选填）：行情变化、别的周期的图、仓位截图，什么图都可以，可以一次放几张${(f.keep||[]).length?`<div class="small muted">原来的图片（会保留；不要的点移除）</div><div class="thumbs">${f.keep.map((x,i)=>`<div class="thumb"><img data-img="${esc(typeof x==='string'?x:x.p)}" alt="原来的图片 ${i+1}"><button type="button" data-act="feelRmKeep" data-id="${o.id}" data-i="${i}">移除</button></div>`).join('')}</div>`:''}<button type="button" class="btn sec pickbtn" data-act="feelPickImg" data-id="${o.id}">＋ 放图片</button><input type="file" accept="image/*" multiple hidden data-feelfile="${o.id}">
   ${fs.length?`<div class="thumbs">${fs.map((x,i)=>`<div class="thumb"><img src="${x.tmp}" alt="持仓中图片 ${i+1}"><select data-act-change="fkind" data-id="${o.id}" data-i="${i}" aria-label="图片类型">${FKIND.map(k=>`<option value="${k[0]}" ${x.kind===k[0]?'selected':''}>${k[1]}</option>`).join('')}</select><button type="button" data-act="feelRmShot" data-id="${o.id}" data-i="${i}">移除</button></div>`).join('')}</div>`:''}</div>
-  <button type="button" class="btn" data-act="feelSave" data-id="${o.id}">记下来</button>${msg?`<p class="okmsg">${esc(msg)}</p>`:''}</div>`}
+  ${f.editT?`<div class="btns full"><button type="button" class="btn" data-act="feelSave" data-id="${o.id}">保存修改</button><button type="button" class="btn sec" data-act="feelEditCancel" data-id="${o.id}">取消修改</button></div>`:`<button type="button" class="btn" data-act="feelSave" data-id="${o.id}">记下来</button>`}${msg?`<p class="okmsg">${esc(msg)}</p>`:''}</div>`}
 function holdingCard(o){const ev=timeline(o);const msg=APP.evMsg&&APP.evMsg.id===o.id?APP.evMsg.msgs:null;
   return `<section class="card warn"><h3>持仓中 · #${o.no} ${esc(o.symbol)} ${o.side==='LONG'?'多':'空'}</h3><p class="small muted">开仓 ${o.open&&o.open.t!=null?bj(o.open.t).str:'—'} · 均价 ${o.open.price??'—'} · 数量 ${o.open.qty??'—'} · 止损 ${o.plan&&o.plan.stop!=null?o.plan.stop:'<b class="stop">没有</b>'}${(()=>{const v=stopPnl(o);return v==null?'':v<0?` · 打到止损会亏 <b class="stop">${(-v).toFixed(2)} u</b>（不含手续费）`:` · 打到止损还能保住 ${v.toFixed(2)} u`})()}</p>
   <div class="btns"><button type="button" class="btn sec" data-act="closeOpen" data-id="${o.id}">已平仓，记录结果</button></div>
@@ -964,7 +964,7 @@ function holdingCard(o){const ev=timeline(o);const msg=APP.evMsg&&APP.evMsg.id==
   <h4>想做下面这些之前，先点一下（会记下来，算你忍住了一次）</h4><div class="panic">${PANIC.map((p,i)=>`<button type="button" data-act="panic" data-id="${o.id}" data-i="${i}">${p[1]}</button>`).join('')}</div>${APP.panicMsg&&APP.panicMsg.id===o.id?`<p class="stopmsg">${esc(APP.panicMsg.text)}</p>`:''}${(o.urges||[]).length?`<p class="small muted">这笔已经忍住 ${o.urges.length} 次冲动。</p>`:''}
   <h4>已经做了？马上如实记下（页面自动判断有没有违规）</h4><div class="seg">${Object.entries(EVT).map(([k,l])=>`<button type="button" data-act="evOpen" data-v="${k}" data-id="${o.id}" aria-pressed="${!!(APP.ev&&APP.ev.id===o.id&&APP.ev.type===k)}">${l}</button>`).join('')}</div>
   ${evForm(o)}${msg?`<div class="${/违规|不到 1/.test(msg.join(''))?'stopmsg':'okmsg'}">${msg.map(esc).join('<br>')}</div>`:''}
-  ${ev.length?`<h4>这笔持仓中记下的（最新的在上面）</h4><div class="evs">${ev.slice().reverse().map(tlLine).join('')}</div>`:''}
+  ${ev.length?`<h4>这笔持仓中记下的（最新的在上面）</h4><div class="evs">${ev.slice().reverse().map(x=>tlLine(x,o.id)).join('')}</div>`:''}
   <button type="button" class="btn" data-act="closeOpen" data-id="${o.id}">已平仓，记录结果</button></section>`}
 
 /* ---------- 闸门 ---------- */
@@ -1390,13 +1390,22 @@ const A={
   panic:b=>{const p=PANIC[+b.dataset.i];const o=APP.T.find(t=>t.id===b.dataset.id)||openTrade();if(o){o.urges=o.urges||[];o.urges.push({t:now(),kind:p[0]});saveT(o);APP.panicMsg={id:o.id,text:p[2]}}render()},
   feelPick:b=>{const f=feelDraft(b.dataset.id),g=b.dataset.grp,v=b.dataset.v;if(g==='pnl')f.pnl=f.pnl===v?null:v;else if(g==='fantAct'&&v==='none'){f.fantAct=f.fantAct.includes('none')?[]:['none']}else{const a=f[g];const i=a.indexOf(v);if(i>=0)a.splice(i,1);else{a.push(v);if(g==='fantAct'){const j=a.indexOf('none');if(j>=0)a.splice(j,1)}}if(g==='fant'&&!f.fant.length)f.fantAct=[]}APP.feelMsg=null;render()},
   feelSave:async b=>{const id=b.dataset.id;const t=APP.T.find(x=>x.id===id);if(!t)return;const f=feelDraft(id);const text=(f.text||'').trim();const shots=f.shots||[];
-    if(f.saving)return;if(!f.emo.length&&!text&&!f.pnl&&!f.doing.length&&!shots.length&&!f.fant.length){toast('先点一个感受或念头、写一句话，或者放一张图');return}
+    if(f.saving)return;if(!f.emo.length&&!text&&!f.pnl&&!f.doing.length&&!shots.length&&!f.fant.length&&!(f.keep||[]).length){toast('先点一个感受或念头、写一句话，或者放一张图');return}
+    if(f.editT){const r=(t.feels||[]).find(x=>x.t===f.editT);if(!r){APP.feels[id]=null;feelDraft(id);toast('找不到原来那条了');render();return}
+      let add=[];if(shots.length){f.saving=true;try{const out=await uploadShots({shots},id);out.forEach(o=>{o.feel=r.t});t.shots=(t.shots||[]).concat(out);add=out.map(o=>o.p)}finally{f.saving=false}}
+      Object.assign(r,{emo:f.emo.slice(),pnl:f.pnl,doing:f.doing.slice(),text,price:num(f.price),editedAt:now()});if(f.fant.length){r.fant=f.fant.slice();r.fantAct=f.fantAct.slice()}else{delete r.fant;delete r.fantAct}
+      const sh=(f.keep||[]).concat(add);if(sh.length)r.shots=sh;else delete r.shots;saveT(t);APP.feels[id]=null;feelDraft(id);APP.feelMsg={id,text:'已改好（'+bj(r.t).str.slice(6)+' 那条）。'};render();return}
     const rec={t:now(),emo:f.emo.slice(),pnl:f.pnl,doing:f.doing.slice(),text,price:num(f.price)};if(f.fant.length){rec.fant=f.fant.slice();rec.fantAct=f.fantAct.slice()}
     if(shots.length){f.saving=true;try{const out=await uploadShots({shots},id);out.forEach(o=>{o.feel=rec.t});t.shots=(t.shots||[]).concat(out);rec.shots=out.map(o=>o.p)}finally{f.saving=false}}
     t.feels=(t.feels||[]).concat([rec]);saveT(t);
     if(f.doing.includes('ext')){APP.P.externalSeenAt=now();saveP()}
     const tips=[...new Set(f.fant.map(k=>HFANT_TIP[k]).concat(f.doing.map(k=>DOING_TIP[k]),f.emo.map(k=>FEEL_TIP[k])).filter(Boolean))].slice(0,2);
     APP.feels[id]={emo:[],pnl:null,doing:[],text:'',price:'',shots:[],fant:[],fantAct:[]};APP.feelMsg={id,text:'记下了（'+bj(rec.t).str.slice(6)+'）。'+(tips.length?' '+tips.join(' '):'')};render()},
+  feelEdit:b=>{const id=b.dataset.id,tt=+b.dataset.t;const t=APP.T.find(x=>x.id===id);const r=t&&(t.feels||[]).find(x=>x.t===tt);if(!r)return;
+    APP.feels=APP.feels||{};APP.feels[id]={emo:(r.emo||[]).slice(),pnl:r.pnl||null,doing:(r.doing||[]).slice(),text:r.text||'',price:r.price!=null?String(r.price):'',shots:[],keep:(r.shots||[]).slice(),fant:(r.fant||[]).slice(),fantAct:(r.fantAct||[]).slice(),editT:r.t};APP.feelMsg=null;render();
+    setTimeout(()=>{const el=document.querySelector(`[data-feelbox="${id}"]`);if(el)el.scrollIntoView({block:'start'})},30)},
+  feelEditCancel:b=>{APP.feels[b.dataset.id]=null;feelDraft(b.dataset.id);render()},
+  feelRmKeep:b=>{const f=feelDraft(b.dataset.id);(f.keep||[]).splice(+b.dataset.i,1);render()},
   feelPickImg:b=>{const i=document.querySelector(`input[data-feelfile="${b.dataset.id}"]`);if(i)i.click()},
   feelRmShot:b=>{const f=feelDraft(b.dataset.id);(f.shots||[]).splice(+b.dataset.i,1);render()},
   imgZoom:async b=>{const u=await imgURL(b.dataset.p);if(!u){toast('图片还没取到');return}const z=document.createElement('div');z.className='zoom';z.setAttribute('role','dialog');z.innerHTML=`<img src="${u}" alt="持仓中图片">`;z.onclick=()=>z.remove();document.body.appendChild(z)},
@@ -1495,11 +1504,19 @@ const A={
     if(f.hl==='other'){if(!note){toast('写一句是什么违规');return}addViolation('selfOther',null,true,{note});saveP();APP.selfForm=null;toast('记下了，不用停。主动承认比隐瞒好得多');render();return}
     addViolation('self',null,true,{hl:f.hl,note});saveP();APP.selfForm=null;toast(f.hl===6?'记下了。这轮练习结束，停 30 天。主动承认比隐瞒好得多':'记下了。按规则停 7 天；主动承认比隐瞒好得多');render()},
   stepUp:()=>{if(!canStepUp())return;const P=APP.P;P.riskU=(P.riskU||1)+1;P.cleanCount=0;(P.stepUps=P.stepUps||[]).push({t:now(),riskU:P.riskU});saveP();toast(`已改成每笔最多亏 ${P.riskU} u`);render()},
+  moodEdit:b=>{const k=b.dataset.k,t=+b.dataset.t;const e=APP.D[k]&&(APP.D[k].entries||[]).find(x=>x.t===t);if(!e)return;
+    APP.moodF={mood:e.mood||null,emo:(e.emo||[]).slice(),q:Object.assign({},e.q||{}),fant:(e.fant||[]).slice(),fantAct:(e.fantAct||[]).slice(),shots:[],keep:(e.shots||[]).slice(),text:e.text||'',editKey:{k,t}};APP.moodMsg=null;render();window.scrollTo(0,0)},
+  moodEditCancel:()=>{APP.moodF=null;render()},
+  moodRmKeep:b=>{const f=moodDraft();(f.keep||[]).splice(+b.dataset.i,1);render()},
   moodPickImg:()=>{const i=document.querySelector('input[data-moodfile]');if(i)i.click()},
   moodRmShot:b=>{const f=moodDraft();(f.shots||[]).splice(+b.dataset.i,1);render()},
   moodPick:b=>{const f=moodDraft(),g=b.dataset.grp,v=b.dataset.v;if(g==='fant'||g==='fantAct'){f[g]=f[g]||[];const a=f[g];const i=a.indexOf(v);if(v==='none'){f[g]=i>=0?[]:['none'];if(g==='fant')f.fantAct=[]}else{if(i>=0)a.splice(i,1);else{a.push(v);const j=a.indexOf('none');if(j>=0)a.splice(j,1)}}}else if(g==='mood')f.mood=f.mood===v?null:v;else if(g==='emo'){const i=f.emo.indexOf(v);if(i>=0)f.emo.splice(i,1);else f.emo.push(v)}else if(g.startsWith('q:')){const k=g.slice(2);f.q[k]=f.q[k]===v?null:v}APP.moodMsg=null;render()},
   moodSave:async()=>{const f=moodDraft();const text=(f.text||'').trim();const q={};Object.entries(f.q).forEach(([k,v])=>{if(v!=null)q[k]=v});
     const fant=(f.fant||[]).slice(),fantAct=(f.fantAct||[]).slice();const shots=f.shots||[];if(f.saving)return;if(!f.mood&&!f.emo.length&&!text&&!Object.keys(q).length&&!fant.length&&!shots.length){toast('先点一个，或者写一句话');return}
+    if(f.editKey){const k=f.editKey.k,d=APP.D[k];const e=d&&(d.entries||[]).find(x=>x.t===f.editKey.t);if(!e){APP.moodF=null;toast('找不到原来那条了');render();return}
+      if(!f.mood&&!f.emo.length&&!text&&!Object.keys(q).length&&!fant.length&&!shots.length&&!(f.keep||[]).length){toast('先点一个，或者写一句话');return}
+      let add=[];if(shots.length){f.saving=true;try{const out=await uploadShots({shots},'days/'+k);add=out.map(o=>({p:o.p,kind:o.kind}))}finally{f.saving=false}}
+      Object.assign(e,{mood:f.mood,emo:f.emo.slice(),q,fant,fantAct,text,shots:(f.keep||[]).concat(add),editedAt:now()});if(!e.shots.length)delete e.shots;saveD(k);APP.moodF=null;APP.moodMsg='已改好（'+k.slice(5)+' '+bj(e.t).str.slice(6)+' 那条）。';render();return}
     const k=todayKey();const d=APP.D[k]||(APP.D[k]={k,entries:[]});const e={t:now(),mood:f.mood,emo:f.emo.slice(),q,fant,fantAct,text};if(shots.length){f.saving=true;try{const out=await uploadShots({shots},'days/'+k);e.shots=out.map(o=>({p:o.p,kind:o.kind}))}finally{f.saving=false}}d.entries=(d.entries||[]).concat([e]);saveD(k);
     const tips=[];if(fant.includes('missed')||fant.includes('ifOnly'))tips.push('没拿到的钱不是你的，也不是亏的。“要是当时”的数，算得越细，下一单越想追。');if(fantAct.includes('opened')||fantAct.includes('bigger'))tips.push('念头之后开的仓，复盘时要特别看一眼。');if(fant.includes('spend')||fant.includes('future'))tips.push('算数会让你在脑子里先把钱“拿到手”。记下来就好，不据此开单。');if(q.depositUrge==='1')tips.push('想入金是这个循环里最稳定的一环。今天跟你信任的那个人说一声。');if(q.drink==='1'||q.sleep==='0')tips.push('状态不对：今天只平仓，不开仓。');if(q.tradeUrge==='2')tips.push('很想交易的时候，先看一遍 6 条硬线，再决定。');
     APP.moodF=null;APP.moodMsg='记下了（'+bj(e.t).str.slice(6)+'）。'+tips.slice(0,2).join(' ');render()},
