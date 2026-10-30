@@ -164,7 +164,7 @@ h4{font-size:14px;margin:4px 0 0;font-weight:700}
 .ftimgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.ftimgs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:var(--soft);cursor:zoom-in}
 .zoom{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:12px;cursor:zoom-out}.zoom img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
 .pickbtn{justify-self:start}
-.big .widetile{grid-column:1/-1;min-height:auto}.planrow{display:grid;gap:6px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.big .widetile{grid-column:1/-1;min-height:auto}.rtlist{display:grid;gap:0}.rtrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--line)}.rtrow>div:first-child{display:grid;gap:2px}.rtrow .seg{flex-wrap:nowrap}@media (max-width:520px){.rtrow{grid-template-columns:1fr}}.planrow{display:grid;gap:6px;padding:8px 0;border-bottom:1px dashed var(--line)}
 .fantbox{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:10px;background:var(--bg)}
 .hlpick{display:grid;gap:8px}.hlpick button{font:inherit;text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:10px 12px;display:grid;gap:2px;cursor:pointer}.hlpick button span{font-size:13px;color:var(--muted)}.hlpick button[aria-pressed="true"]{border-color:var(--ink);background:var(--paper);box-shadow:inset 0 0 0 1px var(--ink)}
 input,textarea,select,.f select,.f textarea,.thumb select{font-size:16px}
@@ -384,7 +384,7 @@ function mergeProfile(remote,local){const m=Object.assign({},remote,local);const
   m.deposits=uniq([...(remote.deposits||[]),...(local.deposits||[])],d=>d.t).sort((a,b)=>a.t-b.t).slice(-100);
   ['seq','paperPlans','lastLossAt','lastBigWinAt','externalSeenAt','weekStopUntil','depositLockUntil','lockUntil'].forEach(k=>m[k]=Math.max(remote[k]||0,local[k]||0));if(m.lockUntil&&m.lockUntil===(remote.lockUntil||0)&&remote.lockReason)m.lockReason=remote.lockReason;if(vd.size){const lk=lockFrom(m.violations);m.lockUntil=lk.until;m.lockReason=lk.reason}{const ps=[remote.practiceStart,local.practiceStart].filter(x=>x>0);m.practiceStart=ps.length?Math.min(...ps):0}
   if(remote.lastClose&&(!local.lastClose||remote.lastClose.t>local.lastClose.t))m.lastClose=remote.lastClose;return m}
-function mergeDoc(path,remote,local){if(path===PATH.P)return mergeProfile(remote||{},local||{});if(path.startsWith(REC+'/days/')&&remote&&local){const mm=new Map();[...(remote.entries||[]),...(local.entries||[])].forEach(e=>mm.set(e.t,e));return Object.assign({},remote,local,{entries:[...mm.values()].sort((a,b)=>a.t-b.t)})}return (remote&&(remote.updatedAt||0)>(local.updatedAt||0))?remote:local}
+function mergeDoc(path,remote,local){if(path===PATH.P)return mergeProfile(remote||{},local||{});if(path.startsWith(REC+'/days/')&&remote&&local){const mm=new Map();[...(remote.entries||[]),...(local.entries||[])].forEach(e=>mm.set(e.t,e));const rp=new Map();[...(remote.replays||[]),...(local.replays||[])].forEach(e=>rp.set(e.t,e));const o=Object.assign({},remote,local,{entries:[...mm.values()].sort((a,b)=>a.t-b.t)});if(rp.size)o.replays=[...rp.values()].sort((a,b)=>a.t-b.t);return o}return (remote&&(remote.updatedAt||0)>(local.updatedAt||0))?remote:local}
 async function pushJSON(path,c){const body={message:msgFor(path,c.data),content:b64json(c.data),branch:CFG.branch};if(c.sha)body.sha=c.sha;
   let r=await gh('PUT',contentsURL(path),body);
   if(r.status===409||r.status===422){/* 另一台设备改过，或文件已存在：取回来合并后再存 */
@@ -831,7 +831,7 @@ function tabs(){const pend=realTrades().filter(t=>t.status==='closed').length;co
 function render(){tabs();const v=$('#view');
   if(APP.mode==='loading'){v.innerHTML=`<section class="card"><h2>正在读取你的记录</h2><p class="muted">先读这台设备上存的，再去 GitHub 取别的设备记的。</p></section>`;return}
   if(APP.detail){v.innerHTML=viewDetail(APP.detail);hydrate();growAll();return}
-  v.innerHTML=({today:viewToday,capture:viewCapture,review:viewReview,progress:viewProgress,ai:viewAI,gate:viewGate,week:viewWeek,setup:viewSetup,hold:viewHold,mood:viewMood,rules:viewRules,records:viewRecords,plan:viewPlan}[APP.route]||viewToday)();
+  v.innerHTML=({today:viewToday,capture:viewCapture,review:viewReview,progress:viewProgress,ai:viewAI,gate:viewGate,week:viewWeek,setup:viewSetup,hold:viewHold,mood:viewMood,rules:viewRules,records:viewRecords,plan:viewRoutine}[APP.route]||viewToday)();
   hydrate();updatePill();growAll();
   if(APP.route==='capture')bindDrop();
   if(APP.route==='gate')bindGateDrop();
@@ -845,10 +845,10 @@ function homeTiles(){const P=APP.P,tn=now();const opens=openTrades();const pend=
   const short=t=>`#${t.no} ${esc(String(t.symbol).replace(/USDT$/,''))} ${t.side==='LONG'?'多':'空'}${(()=>{const v=stopPnl(t);return v==null?' · 没有止损':v<0?` · 打到止损亏 ${(-v).toFixed(2)} u`:' · 止损已过成本'})()}`;
   const gateSub=lock?`<span class="stop">停到 ${bj(P.lockUntil).str}，现在不能开</span>`:P.dayStopped?'今天已经停了，明天再说':opens.length?'已有持仓，先处理手上这一单':'下单前过一遍，自动算盈亏比和能开多少';
   const tile=(act,v,title,sub,cls,badge)=>`<button type="button" class="${cls||''}" data-act="${act}"${v?` data-v="${v}"`:''}><b>${title}${badge?`<i class="tbadge">${badge}</i>`:''}</b><span>${sub}</span></button>`;
-  const dd=APP.D[dk]||{};const pl=dd.plan,rv=dd.review;const hr=bj(tn).h;
-  const planSub=!pl?'还没写今天最重要的 3 件事':rv?`${pl.items.length} 件做完 ${rv.items.filter(x=>x.status==='done').length} 件${rv.first?' · 明天第一件：'+esc(rv.first):''}`:`${pl.items.map(x=>esc(x.text)).join('；')}${hr>=20?' · 晚上记得总结':''}`;
+  const hr=bj(tn).h;const rc=dayCounts(dk);const rfl=dayFloor(dk);const rn=replaysOf(dk).length;const rstk=floorStreak();
+  const planSub=`标准 ${rc.std} · 最低 ${rc.min} · 没做 ${rc.no} · 回放 ${rn} / 10 个${rfl?' · 今天守住底线了':''} · 连续守住 ${rstk} 天`;
   return `<div class="big">
-  <button type="button" class="widetile ${!pl||(!rv&&hr>=20)?'alert':''}" data-act="tab" data-v="plan"><b>今天的计划</b><span>${planSub}</span></button>
+  <button type="button" class="widetile ${rfl?'':hr>=20||rc.no?'alert':''}" data-act="tab" data-v="plan"><b>今天怎么过</b><span>${planSub}</span></button>
   ${tile('tab','gate','下单前检查',gateSub,'primary')}
   ${tile('tab','hold','持仓中',opens.length?opens.slice(0,2).map(short).join('<br>'):'现在没有持仓',opens.length?'alert':'',opens.length||'')}
   ${tile('newCapture','','记一笔','放截图、填几个数字，1 分钟')}
@@ -873,37 +873,74 @@ const PLAN_PH=['例如：整理信用社续贷要交的材料','例如：08:00�
 const dayDoc=k=>APP.D[k]||(APP.D[k]={k,entries:[]});
 const yesterdayKey=()=>bj(now()-DAY).day;
 const planKey=()=>APP.planDay||todayKey();
-function planDraft(k,p){if(APP.planF&&APP.planF.k===k)return APP.planF;const it=p?p.items.map(x=>({text:x.text,cat:x.cat})):[];while(it.length<3)it.push({text:'',cat:null});
-  if(!p&&k===todayKey()){const y=APP.D[yesterdayKey()];if(y&&y.review&&y.review.first&&!it[0].text)it[0].text=y.review.first}
-  return APP.planF={k,items:it,fallback:p&&p.fallback?p.fallback.slice():[]}}
-function revDraft(k,p,r){if(APP.revF&&APP.revF.k===k)return APP.revF;const ri=(r&&r.items)||[];
-  return APP.revF={k,items:p.items.map((_,i)=>({status:(ri[i]&&ri[i].status)||null,why:((ri[i]&&ri[i].why)||[]).slice()})),phone:(r&&r.phone)||null,chart:(r&&r.chart)||null,win:(r&&r.win)||'',first:(r&&r.first)||''}}
-function planStats(){const ks=Object.keys(APP.D).filter(k=>now()-Date.parse(k+'T12:00:00+08:00')<14*DAY);const pl=ks.filter(k=>APP.D[k].plan);const rv=pl.filter(k=>APP.D[k].review);
-  let tot=0,done=0;const why={};rv.forEach(k=>{const d=APP.D[k];d.review.items.forEach(x=>{tot++;if(x.status==='done')done++;(x.why||[]).forEach(w=>why[w]=(why[w]||0)+1)})});
-  const top=Object.entries(why).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k,v])=>feelL(PWHY,k)+' '+v+' 次').join('、');
-  return `<section class="card"><h3>每天的计划（最近 14 天）</h3><div class="stats"><div>写了计划<b>${pl.length} 天</b></div><div>写了总结<b>${rv.length} 天</b></div><div>做完<b>${tot?done+' / '+tot+' 件':'—'}</b></div></div>${top?`<p class="small muted">没做的最常见原因：${top}。</p>`:'<p class="small muted">在“今天的计划”里早上写 3 件事、晚上总结，这里会开始统计。</p>'}</section>`}
-function viewPlan(){const k=planKey(),today=todayKey(),yk=yesterdayKey();const d=APP.D[k]||{};const p=d.plan,r=d.review;const yd=APP.D[yk];const yFirst=yd&&yd.review&&yd.review.first;const lbl=k===today?'今天':'昨天';
+const RT=[['wake','起床出门，算上班','10:30 前起来，出门买早餐、走到办公室坐下','10:30 前起来'],
+ ['chart1','看图 1','看日线和 4 小时，有合格形态就写一份纸面计划','看 5 分钟，写一句'],
+ ['replay','回放练习','10 个样本','2 个样本'],
+ ['life','生活里的一件事','家务、对账、收拾东西、给家里打个电话','做一件小事'],
+ ['walk','饭后散步，算下班','走 40 分钟','走 10 分钟'],
+ ['chart2','看图 2','20:00 后看 4 小时收线，有形态写纸面计划','看 5 分钟，写一句'],
+ ['off','下班后不碰盘','散步回来就关电脑、离开那张桌子','22:00 以后不看'],
+ ['night','睡前总结','打勾、心情一句、回头看最多 5 分钟','写一句话'],
+ ['phone','昨晚按时放下手机','这周 01:00 前放到够不着的地方','02:00 前']];
+const RSTAT=[['std','标准'],['min','最低'],['no','没做']];
+const REP_PAT=[['range','水平区间'],['rtri','直角三角'],['stri','对称三角'],['flag','旗形'],['mw','M 顶 / W 底'],['hs','头肩'],['hard','其他形态']];
+const REP_TF=[['1d','日线'],['12h','12 小时'],['4h','4 小时']];
+const REP_RES=[['tp','先到目标'],['sl','先被止损'],['flat','都没到'],['skip','按规则不做']];
+const routineOf=k=>(APP.D[k]&&APP.D[k].routine)||{items:{}};
+const replaysOf=k=>(APP.D[k]&&APP.D[k].replays)||[];
+function rtState(k,id){const r=routineOf(k);if(id==='replay'){if(r.rest)return 'rest';const nn=replaysOf(k).length;return nn>=10?'std':nn>=2?'min':nn?'low':null}
+  if(r.rest&&(id==='chart1'||id==='chart2'))return 'rest';return (r.items||{})[id]||null}
+const dayFloor=k=>RT.every(x=>['std','min','rest'].includes(rtState(k,x[0])));
+const dayCounts=k=>{const c={std:0,min:0,no:0,todo:0};RT.forEach(x=>{const v=rtState(k,x[0]);if(v==='std'||v==='rest')c.std++;else if(v==='min')c.min++;else if(v==='no'||v==='low')c.no++;else c.todo++});return c};
+function floorStreak(){let c=0;for(let i=0;i<400;i++){const k=bj(now()-i*DAY).day;if(dayFloor(k))c++;else if(i===0)continue;else break}return c}
+const repR=x=>x.result==='tp'?x.rr:x.result==='sl'?-1:x.result==='flat'?(x.R??0):null;
+function repStats(list){const v=list.filter(x=>x.result!=='skip');const w=v.filter(x=>(repR(x)||0)>0).length,l=v.filter(x=>(repR(x)||0)<0).length;const sum=v.reduce((a,x)=>a+(repR(x)||0),0);
+  return {n:list.length,valid:v.length,win:w,loss:l,flat:v.length-w-l,skip:list.length-v.length,wr:v.length?w/v.length:null,avg:v.length?sum/v.length:null,sum}}
+const repDraft=()=>APP.repF||(APP.repF={sym:'BTCUSDT',tf:'4h',pat:null,side:'SHORT',entry:'',stop:'',target:'',result:null,R:'',pre:true,note:''});
+function repRR(f){const e=num(f.entry),st=num(f.stop),tg=num(f.target),L=f.side==='LONG';if(!(e>0&&st>0&&tg>0))return null;if(L?!(st<e&&tg>e):!(st>e&&tg<e))return 'bad';return Math.abs(tg-e)/Math.abs(e-st)}
+function repRRText(f){const r=repRR(f);if(r==null)return {cls:'muted',h:'填好入场、止损、目标，自动算盈亏比。'};if(r==='bad')return {cls:'stop',h:`止损或目标方向反了：做${f.side==='LONG'?'多':'空'}时止损要在${f.side==='LONG'?'下':'上'}面、目标在${f.side==='LONG'?'上':'下'}面。`};
+  return r>=2-1e-9?{cls:'go',h:`盈亏比 1 : ${r.toFixed(2)}，够 1 : 2，可以做。`}:{cls:'stop',h:`盈亏比 1 : ${r.toFixed(2)}，不到 1 : 2，按规则这一个不做，结果点“按规则不做”。`}}
+function repRREl(){const x=document.getElementById('rep_rr');if(!x||!APP.repF)return;const r=repRRText(APP.repF);x.className='rrlive wide '+r.cls;x.innerHTML=r.h}
+function practiceStats(){const ks=Object.keys(APP.D).sort();const k14=ks.filter(k=>now()-Date.parse(k+'T12:00:00+08:00')<14*DAY);const fl=k14.filter(dayFloor).length;
+  const all=ks.flatMap(k=>replaysOf(k));const st=repStats(all);const st7=repStats(ks.filter(k=>now()-Date.parse(k+'T12:00:00+08:00')<7*DAY).flatMap(k=>replaysOf(k)));
+  const by={};all.filter(x=>x.result!=='skip').forEach(x=>{const key=x.pat+'|'+x.tf;(by[key]=by[key]||[]).push(x)});
+  const rows=Object.entries(by).map(([key,l])=>{const [pa,tf]=key.split('|');const s2=repStats(l);return {pa,tf,...s2}}).sort((a,b)=>b.n-a.n);
+  return `<section class="card"><h3>每天怎么过（最近 14 天）</h3><div class="stats"><div>守住底线<b>${fl} 天</b></div><div>连续守住<b>${floorStreak()} 天</b></div></div></section>
+  <section class="card"><h3>回放练习</h3><div class="stats"><div>一共<b>${st.n} 个</b></div><div>最近 7 天<b>${st7.n} 个</b></div><div>赚 / 亏 / 平<b>${st.win} / ${st.loss} / ${st.flat}</b></div><div>胜率<b>${st.wr!=null?Math.round(st.wr*100)+'%':'—'}</b></div><div>平均每个<b>${rS(st.avg)}</b></div><div>按规则不做<b>${st.skip} 个</b></div></div>
+  ${rows.length?`<div class="evs">${rows.map(r=>`<div class="ev"><span class="small">${esc(feelL(REP_TF,r.tf))}</span><span class="small">${esc(feelL(REP_PAT,r.pa))} · ${r.n} 个 · 胜率 ${r.wr!=null?Math.round(r.wr*100)+'%':'—'}</span><span class="mono small">${rS(r.avg)}</span></div>`).join('')}</div>`:''}
+  <p class="small muted">${st.n<30?`还差 ${30-st.n} 个到 30 个。30 个只是开始，100 个才看得出哪种形态对你有用。`:st.n<100?`还差 ${100-st.n} 个到 100 个。`:'已经过 100 个了，可以开始只做胜率和平均 R 都好的那几种。'}${all.some(x=>x.pre===false)?' 看过后面再补的样本也算在里面，回头可以单独去掉再看。':''}</p></section>`}
+function viewRoutine(){const k=planKey(),today=todayKey(),yk=yesterdayKey(),lbl=k===today?'今天':'昨天';const r=routineOf(k);const c=dayCounts(k);const fl=dayFloor(k);const reps=replaysOf(k);
   const chip=(act,v,l,on,extra)=>`<button type="button" data-act="${act}" data-v="${v}" ${extra||''} aria-pressed="${on}">${l}</button>`;
-  let h=subHead('每天的计划和总结','早上写下最重要的 3 件事，晚上花 2 分钟总结')+`<section class="card"><div class="seg">${chip('planDay',today,'今天',k===today)}${chip('planDay',yk,'昨天',k===yk)}</div>`;
-  if(!p||APP.planEdit===k){const f=planDraft(k,p);
-    h+=`<h3>${lbl}最重要的 3 件事</h3><p class="small muted">3 件就够。最好有一件和收入、工作有关，一件和身体有关。看图每天只占两个固定时间，不占一整天。</p>${k===today&&yFirst?`<p class="small wait">昨天说今天第一件事：${esc(yFirst)}</p>`:''}
-    ${f.items.map((it,i)=>`<div class="planrow"><label class="f wide">第 ${i+1} 件<textarea class="grow" rows="2" data-plan="text" data-i="${i}" placeholder="${PLAN_PH[i]}">${esc(it.text||'')}</textarea></label><div class="seg">${PCAT.map(c=>chip('planCat',c[0],c[1],it.cat===c[0],`data-i="${i}"`)).join('')}</div></div>`).join('')}
-    <div class="f">空下来想刷手机、想看盘的时候，我先做（可多选）<div class="seg">${FALLBACK.map(x=>chip('planFb',x[0],x[1],f.fallback.includes(x[0]))).join('')}</div></div>
-    <div class="btns full"><button type="button" class="btn" data-act="planSave">${p?'保存':'定下'+lbl+'的计划'}</button>${p?`<button type="button" class="btn sec" data-act="planEditCancel">取消</button>`:''}</div>`}
-  else h+=`<h3>${lbl}最重要的 3 件事</h3><ol class="hl">${p.items.map((it,i)=>`<li>${esc(it.text)} <span class="chip">${esc(feelL(PCAT,it.cat))}</span>${r&&r.items&&r.items[i]&&r.items[i].status?` <span class="chip ${r.items[i].status==='done'?'grn':r.items[i].status==='no'?'red':'amb'}">${esc(feelL(PSTAT,r.items[i].status))}</span>`:''}</li>`).join('')}</ol>${(p.fallback||[]).length?`<p class="small muted">空下来时先做：${p.fallback.map(x=>esc(feelL(FALLBACK,x))).join('、')}</p>`:''}<button type="button" class="btn sec" data-act="planEditOpen">改一下</button>`;
-  h+=`</section>`;
-  if(p){if(!r||APP.revEdit===k){const f=revDraft(k,p,r);
-      h+=`<section class="card"><h3>${lbl}的总结（2 分钟）</h3>
-      ${p.items.map((it,i)=>`<div class="f"><b>${i+1}. ${esc(it.text)}</b><div class="seg">${PSTAT.map(x=>chip('revStat',x[0],x[1],f.items[i].status===x[0],`data-i="${i}"`)).join('')}</div>${f.items[i].status&&f.items[i].status!=='done'?`<div class="seg">${PWHY.map(x=>chip('revWhy',x[0],x[1],f.items[i].why.includes(x[0]),`data-i="${i}"`)).join('')}</div>`:''}</div>`).join('')}
-      <div class="f">刷抖音、朋友圈大概多久<div class="seg">${PTIME.map(x=>chip('revTime',x[0],x[1],f.phone===x[0],'data-k="phone"')).join('')}</div></div>
-      <div class="f">盯盘大概多久（不算计划里那两次看图）<div class="seg">${PTIME.map(x=>chip('revTime',x[0],x[1],f.chart===x[0],'data-k="chart"')).join('')}</div></div>
-      <label class="f wide">${lbl}做成的一件小事（再小都算）<textarea class="grow" rows="2" data-rev="win" placeholder="例如：把续贷要的流水打印出来了；出门走了 20 分钟">${esc(f.win)}</textarea></label>
-      <label class="f wide">明天第一件事<textarea class="grow" rows="2" data-rev="first" placeholder="例如：上午 10 点前把材料交给信用社">${esc(f.first)}</textarea></label>
-      <div class="btns full"><button type="button" class="btn" data-act="revSave">写完${lbl}的总结</button>${r?`<button type="button" class="btn sec" data-act="revEditCancel">取消</button>`:''}</div></section>`}
-    else{const dn=r.items.filter(x=>x.status==='done').length,pt=r.items.filter(x=>x.status==='part').length;
-      h+=`<section class="card"><h3>${lbl}的总结</h3><p>${p.items.length} 件做完 ${dn} 件${pt?`，做了一部分 ${pt} 件`:''}。</p>${r.win?`<p class="small">做成的小事：${esc(r.win)}</p>`:''}${r.first?`<p class="small">明天第一件事：${esc(r.first)}</p>`:''}${r.phone||r.chart?`<p class="small muted">刷手机 ${esc(r.phone?feelL(PTIME,r.phone):'—')} · 盯盘 ${esc(r.chart?feelL(PTIME,r.chart):'—')}</p>`:''}<button type="button" class="btn sec" data-act="revEditOpen">改一下</button></section>`}}
-  const ks=Object.keys(APP.D).filter(x=>APP.D[x].plan).sort().reverse().slice(0,7);
-  if(ks.length)h+=`<section class="card"><h3>最近几天</h3><div class="evs">${ks.map(x=>{const dd=APP.D[x],rr=dd.review;const dn=rr?rr.items.filter(i=>i.status==='done').length:0;return `<div class="ev"><span class="mono small muted">${x.slice(5)}</span><span class="small">${dd.plan.items.map(i=>esc(i.text)).join('；')}</span><span class="chip ${rr?(dn===dd.plan.items.length?'grn':'amb'):''}">${rr?`做完 ${dn}/${dd.plan.items.length}`:'没总结'}</span></div>`}).join('')}</div></section>`;
+  let h=subHead('今天怎么过','办公室就是据点：出门算上班，散步算下班。每项做到最低，就算守住底线')+
+  `<section class="card"><div class="seg">${chip('planDay',today,'今天',k===today)}${chip('planDay',yk,'昨天',k===yk)}</div>
+  <div class="stats"><div>标准<b>${c.std}</b></div><div>最低<b>${c.min}</b></div><div>没做<b>${c.no}</b></div><div>还没打勾<b>${c.todo}</b></div></div>
+  <p class="${fl?'go':'small muted'}">${fl?`<b>${lbl}守住底线了。</b>`:`${lbl}还差 ${c.no+c.todo} 项到底线。`} 连续守住底线 <b>${floorStreak()}</b> 天。</p>
+  <button type="button" class="btn sec" data-act="rtRest" aria-pressed="${!!r.rest}">${r.rest?'✓ 今天是休息日（看图、回放不用做）':'今天是休息日（一周一天）'}</button></section>
+  <section class="card"><h3>${lbl}的九项</h3><div class="rtlist">${RT.map(x=>{const v=rtState(k,x[0]);
+    if(x[0]==='replay')return `<div class="rtrow"><div><b>${x[1]}</b><span class="small muted">标准：${x[2]} · 最低：${x[3]}</span></div><div class="small ${v==='std'?'go':v==='min'?'':'wait'}">${r.rest?'休息日':`${lbl} ${reps.length} / 10 个`}${!r.rest?` <button type="button" class="btn sec" data-act="repJump" style="padding:4px 10px;font-size:13px">记一个</button>`:''}</div></div>`;
+    if(v==='rest')return `<div class="rtrow"><div><b>${x[1]}</b></div><div class="small muted">休息日</div></div>`;
+    return `<div class="rtrow"><div><b>${x[1]}</b><span class="small muted">标准：${x[2]} · 最低：${x[3]}</span></div><div class="seg">${RSTAT.map(s2=>chip('rtSet',s2[0],s2[1],v===s2[0],`data-id="${x[0]}"`)).join('')}</div></div>`}).join('')}</div></section>`;
+  const f=repDraft();const rr=repRRText(f);
+  h+=`<section class="card" id="repcard"><h3>回放练习：记一个样本</h3><p class="small muted">先在 TradingView 回放里把后面的 K 线藏起来，写好计划再往后放。几分钟见结果，记下，马上下一个。</p>
+  <div class="f">级别<div class="seg">${REP_TF.map(x=>chip('repPick',x[0],x[1],f.tf===x[0],'data-k="tf"')).join('')}</div></div>
+  <div class="f">形态<div class="seg">${REP_PAT.map(x=>chip('repPick',x[0],x[1],f.pat===x[0],'data-k="pat"')).join('')}</div></div>
+  <div class="f">方向<div class="seg">${chip('repPick','SHORT','空',f.side==='SHORT','data-k="side"')}${chip('repPick','LONG','多',f.side==='LONG','data-k="side"')}</div></div>
+  <div class="fields"><label class="f">入场<input data-rep="entry" inputmode="decimal" value="${esc(f.entry)}"></label><label class="f">止损<input data-rep="stop" inputmode="decimal" value="${esc(f.stop)}"></label><label class="f">目标<input data-rep="target" inputmode="decimal" value="${esc(f.target)}"></label>
+  <p id="rep_rr" class="rrlive wide ${rr.cls}">${rr.h}</p></div>
+  <div class="f">往后放，结果是<div class="seg">${REP_RES.map(x=>chip('repPick',x[0],x[1],f.result===x[0],'data-k="result"')).join('')}</div></div>
+  ${f.result==='flat'?`<label class="f">都没到：按最后的价格算是几 R（可不填，不填算 0）<input data-rep="R" inputmode="decimal" value="${esc(f.R)}" placeholder="例如 0.5 或 -0.3"></label>`:''}
+  <div class="yn"><span>后面的 K 线是先藏起来、写好计划再放的</span>${yn('repPre','pre',f.pre)}</div>
+  <label class="f wide">一句话（可不填）<textarea class="grow" rows="2" data-rep="note" placeholder="例如：碰了 4 次的下降线，收线跌破，到目标前反抽了一次">${esc(f.note)}</textarea></label>
+  <button type="button" class="btn" data-act="repSave">记下这个样本</button>
+  ${reps.length?`<h4>${lbl}的样本</h4><div class="evs">${reps.slice().reverse().map((x,i)=>{const R=repR(x);return `<div class="ev"><span class="mono small muted">#${reps.length-i}</span><span class="small">${esc(feelL(REP_TF,x.tf))} ${esc(feelL(REP_PAT,x.pat))} ${x.side==='LONG'?'多':'空'}${x.rr?` · 1 : ${(+x.rr).toFixed(2)}`:''}${x.pre===false?' · 看过后面':''}${x.note?' · '+esc(x.note):''}</span><span class="small ${R==null?'muted':R>0?'go':R<0?'stop':''}">${x.result==='skip'?'不做':rS(R)} ${APP.repDelT===x.t?`<button type="button" class="btn red" data-act="repDelYes" data-t="${x.t}" style="padding:2px 8px;font-size:12px">确认删</button>`:`<button type="button" class="btn sec" data-act="repDel" data-t="${x.t}" style="padding:2px 8px;font-size:12px">删</button>`}</span></div>`}).join('')}</div>`:''}
+  <p class="small muted">全部样本的统计在“进步”页。</p></section>`;
+  h+=`<section class="card"><h3>${lbl}的总结</h3>
+  <label class="f wide">一句话（心情、今天怎么样都行）<textarea class="grow" rows="2" data-rt="note" placeholder="例如：上午做了 6 个样本，下午又刷了两个小时抖音">${esc(r.note||'')}</textarea></label>
+  <label class="f wide">回头看（最多 5 分钟，写下来就合上）<textarea class="grow" rows="2" data-rt="look" placeholder="例如：又想到去年这个时候还有存款……">${esc(r.look||'')}</textarea></label>
+  <div class="f">刷抖音、朋友圈大概多久<div class="seg">${PTIME.map(x=>chip('rtTime',x[0],x[1],r.phone===x[0],'data-k="phone"')).join('')}</div></div>
+  <div class="f">盯盘大概多久（不算两次看图）<div class="seg">${PTIME.map(x=>chip('rtTime',x[0],x[1],r.chart===x[0],'data-k="chart"')).join('')}</div></div>
+  <button type="button" class="btn sec" data-act="rtSaveNote">保存这几句</button></section>
+  <details class="card"><summary><b>为什么这样过（点开看）</b></summary><ul class="small" style="margin:8px 0 0 18px;padding:0;line-height:1.8"><li>办公室没了节奏，一天没有开头和结尾，所以每天都一样、很空。出门算上班、散步算下班，一天就有了形状。</li><li>只有一条规则：不让任何一天变成零。状态差就做最低版本。</li><li>回放练习一次一个样本，几分钟见结果，像刷抖音一样有下一个；不花钱，样本数就是你的业绩。</li><li>无聊先做一件小事；幻想和回头看写下来，留到晚上，不据此开单。</li><li>工具冻结到 11-13：这两周不改日志、不找新工具，只照这一页过。详细在仓库 6_我的交易系统/每天怎么过.md。</li></ul></details>`;
   return h}
 function viewMood(){const tn=now();const ks=Object.keys(APP.D).sort().reverse();const recent=ks.flatMap(k=>(APP.D[k].entries||[]).slice().reverse().map(e=>({k,e}))).slice(0,15);
   return subHead('心情和念头','一天几次都行，没交易的日子也记；算数、幻想都算')+moodCard()+
@@ -955,7 +992,7 @@ function commitCard(){const P=APP.P;const cm=(P.commitments||[]).filter(c=>c&&c.
   return `<section class="card"><h3>我的承诺</h3>${cm.length?`<div class="promise"><ol>${cm.map(c=>`<li>${esc(c.text)}</li>`).join('')}</ol></div>`:'<p class="small muted">还没写。写下最多 3 条你自己愿意守的承诺，下单前检查时会先看到它们。</p>'}<button type="button" class="btn sec" data-act="cmEditOpen">${cm.length?'修改':'写承诺'}</button></section>`}
 function depForm(){const f=APP.depForm;
   return `<div class="evform"><h4>记录一次入金或转钱</h4><div class="fields"><label class="f">金额多少 u<input data-dep="amount" inputmode="decimal" value="${esc(f.amount||'')}"></label></div><p class="small stop">入金破了硬线 6：这轮练习结束，停 30 天。还是要如实记，隐瞒比入金更危险。</p><div class="btns full"><button type="button" class="btn" data-act="depSave">记下</button><button type="button" class="btn sec" data-act="depCancel">取消</button></div></div>`}
-const APP_VERSION='10-30 · 17';
+const APP_VERSION='10-30 · 18';
 const SYMS=['BTCUSDT','ETHUSDT','SOLUSDT','BNBUSDT','XRPUSDT','DOGEUSDT'];
 function symField(src,f,id,cls){const cur=f.symbol==='OTHER'?'':(f.symbol||'');const other=!!f.symOther||!SYMS.includes(cur);const attr=src==='g'?'data-g':'data-d';
   return `<label class="f">品种<select id="${id}" class="${cls||''}" data-symsel="${src}">${SYMS.map(x=>`<option value="${x}" ${!other&&cur===x?'selected':''}>${x}</option>`).join('')}<option value="OTHER" ${other?'selected':''}>其他品种（自己填）</option></select></label>${other?`<label class="f">填品种名<input ${attr}="symbol" value="${esc(cur)}" placeholder="例如 HYPEUSDT" autocapitalize="characters" autocomplete="off"></label>`:''}${src==='g'&&cur!=='BTCUSDT'?`<p class="small stop wide">硬线 2：练习期只做 BTCUSDT，选别的品种会是红灯。</p>`:''}`}
@@ -1236,7 +1273,7 @@ function viewProgress(){const P=APP.P;const pr=realTrades().filter(inPractice);c
   <section class="card"><h3>每条硬线破了几次</h3>${[1,2,3,4,5,6].map(n=>`<div class="wf"><span>${n}. ${esc(hlText(n))}</span><span>${hlCount[n-1]?`<span class="chip red">${hlCount[n-1]} 笔</span>`:'<span class="chip grn">没有</span>'}</span></div>`).join('')}</section>
   <section class="card"><h3>结果（按 R 算，R = 那一笔事先定的最多亏损）</h3><div class="stats"><div>合计<b>${rS(m.sumR)}</b></div><div>平均每笔<b>${rS(m.avgR)}</b></div><div>赚 / 亏<b>${m.wins} / ${m.losses}</b></div></div><p class="small muted">这里故意不显示赚了多少 u。不看 u，就没有数字拿去算“能赚多少、能还多少”。</p></section>
   <section class="card"><h3>做得好的地方</h3><div class="stats"><div>持仓中忍住的冲动<b>${urges} 次</b></div><div>其中“在算数”<b>${calcU} 次</b></div><div>主动承认<b>${selfN} 次</b></div></div><p class="small muted">点了“我想……”按钮就算忍住一次。主动承认比隐瞒好得多。</p></section>
-  <section class="card"><h3>最近 14 天的心情</h3>${moodBars}<div class="stats"><div>记了<b>${es.length} 次</b></div><div>很想交易<b>${cnt(e=>e.q&&e.q.tradeUrge==='2')} 次</b></div><div>有幻想、算数<b>${cnt(hasFant)} 次</b></div><div>持仓中记下的幻想<b>${realTrades().reduce((a,t)=>a+(t.feels||[]).filter(f=>(f.fant||[]).length&&now()-f.t<14*DAY).length,0)} 次</b></div><div>念头之后开了仓<b>${cnt(e=>(e.fantAct||[]).some(k=>k==='opened'||k==='bigger'))} 次</b></div><div>想入金<b>${cnt(e=>e.q&&e.q.depositUrge==='1')} 次</b></div><div>没睡够<b>${cnt(e=>e.q&&e.q.sleep==='0')} 次</b></div></div></section>${planStats()}`}
+  <section class="card"><h3>最近 14 天的心情</h3>${moodBars}<div class="stats"><div>记了<b>${es.length} 次</b></div><div>很想交易<b>${cnt(e=>e.q&&e.q.tradeUrge==='2')} 次</b></div><div>有幻想、算数<b>${cnt(hasFant)} 次</b></div><div>持仓中记下的幻想<b>${realTrades().reduce((a,t)=>a+(t.feels||[]).filter(f=>(f.fant||[]).length&&now()-f.t<14*DAY).length,0)} 次</b></div><div>念头之后开了仓<b>${cnt(e=>(e.fantAct||[]).some(k=>k==='opened'||k==='bigger'))} 次</b></div><div>想入金<b>${cnt(e=>e.q&&e.q.depositUrge==='1')} 次</b></div><div>没睡够<b>${cnt(e=>e.q&&e.q.sleep==='0')} 次</b></div></div></section>${practiceStats()}`}
 
 /* ---------- 周复盘 ---------- */
 const WQ=[['kept','这周哪几笔守住了 6 条硬线？'],['why','没守住的那几笔，当时怎么想的？'],['q5','下周只改一件事，是什么？']];
@@ -1246,7 +1283,7 @@ function weekFacts(list,viol){const row=(label,arr)=>`<div class="wf"><span>${la
   return `<div class="wfs">${[1,2,3,4,5,6].map(n=>row(n+'. '+esc(hlText(n)),list.filter(t=>tradeHL(t).includes(n)))).join('')}</div><p class="small muted">本周没守住全部硬线的：${bad.length?bad.map(t=>'#'+t.no).join('、'):'没有'}；破线记录 ${viol.length} 次（主动承认 ${viol.filter(v=>v.rule==='self').length} 次）。</p>`}
 function onePage(k,list,viol){const P=APP.P;const dep=(P.deposits||[]).filter(d=>weekKey(d.t)===k).length+list.filter(t=>(t.checks||{}).transfer).length;const days=Object.keys(APP.D).filter(x=>weekKey(Date.parse(x+'T12:00:00+08:00'))===k);const es=days.flatMap(x=>APP.D[x].entries||[]);
   const clean=list.filter(t=>tradeHL(t).length===0).length;const w=APP.W[k]||{answers:{}};
-  return `<div class="onepage"><p><b>${k} 这一周</b></p><ul><li>平仓 ${list.length} 笔，守住全部 6 条硬线 ${clean} 笔</li><li>破线 ${viol.length} 次${viol.length?'：'+[...new Set(viol.map(v=>v.hl?'硬线 '+v.hl:'主动承认'))].join('、'):''}</li><li>入金或转钱：${dep?`<b class="stop">${dep} 次</b>`:'没有'}</li><li>连续守住 ${P.cleanCount||0} 笔；每笔最多亏 ${P.riskU||1} u</li><li>${P.lockUntil>now()?'现在停到 '+bj(P.lockUntil).str:'现在没有被停'}</li><li>记心情 ${days.length} 天；很想交易 ${es.filter(e=>e.q&&e.q.tradeUrge==='2').length} 次；有幻想、算数 ${es.filter(hasFant).length} 次（念头之后开仓 ${es.filter(e=>(e.fantAct||[]).includes('opened')).length} 次）；保本或小赚被打掉后追进去 ${list.filter(t=>t.chaseAfterBE).length} 笔；想入金 ${es.filter(e=>e.q&&e.q.depositUrge==='1').length} 次</li>${(()=>{const pd=days.filter(x=>APP.D[x].plan);const rv=pd.filter(x=>APP.D[x].review);let tot=0,dn=0;rv.forEach(x=>APP.D[x].review.items.forEach(i=>{tot++;if(i.status==='done')dn++}));return pd.length?`<li>写每天计划 ${pd.length} 天，总结了 ${rv.length} 天，做完 ${dn} / ${tot} 件</li>`:''})()}${w.answers&&w.answers.q5?`<li>下周只改一件事：${esc(w.answers.q5)}</li>`:''}</ul></div>`}
+  return `<div class="onepage"><p><b>${k} 这一周</b></p><ul><li>平仓 ${list.length} 笔，守住全部 6 条硬线 ${clean} 笔</li><li>破线 ${viol.length} 次${viol.length?'：'+[...new Set(viol.map(v=>v.hl?'硬线 '+v.hl:'主动承认'))].join('、'):''}</li><li>入金或转钱：${dep?`<b class="stop">${dep} 次</b>`:'没有'}</li><li>连续守住 ${P.cleanCount||0} 笔；每笔最多亏 ${P.riskU||1} u</li><li>${P.lockUntil>now()?'现在停到 '+bj(P.lockUntil).str:'现在没有被停'}</li><li>记心情 ${days.length} 天；很想交易 ${es.filter(e=>e.q&&e.q.tradeUrge==='2').length} 次；有幻想、算数 ${es.filter(hasFant).length} 次（念头之后开仓 ${es.filter(e=>(e.fantAct||[]).includes('opened')).length} 次）；保本或小赚被打掉后追进去 ${list.filter(t=>t.chaseAfterBE).length} 笔；想入金 ${es.filter(e=>e.q&&e.q.depositUrge==='1').length} 次</li>${(()=>{const fl=days.filter(dayFloor).length;const st=repStats(days.flatMap(x=>replaysOf(x)));return `<li>守住底线 ${fl} 天；回放练习 ${st.n} 个${st.valid?`，胜率 ${Math.round(st.wr*100)}%，平均 ${rS(st.avg)}`:''}</li>`})()}${w.answers&&w.answers.q5?`<li>下周只改一件事：${esc(w.answers.q5)}</li>`:''}</ul></div>`}
 function viewWeek(){const k=APP.weekKey||weekKey(now());const w=APP.W[k]||(APP.W[k]={k,answers:{},ai:'',doneAt:0});
   const list=realTrades().filter(t=>t.close&&weekKey(t.close.t)===k&&inPractice(t));const m=metrics(list);const viol=APP.P.violations.filter(v=>weekKey(v.t)===k&&v.hl!=null&&!v.pre);
   return `<section class="card"><div class="btns"><button type="button" class="btn sec" data-act="tab" data-v="today">返回</button></div><h2>本周复盘 · ${k}</h2><p class="small muted">只数守没守规则，不算“本来能赚多少”。下面的数字页面已经算好了。${(()=>{const pre=realTrades().filter(t=>t.close&&weekKey(t.close.t)===k&&!inPractice(t));return pre.length?`练习开始前开的单不计入：${pre.map(t=>'#'+t.no).join('、')}。`:''})()}</p>
@@ -1262,7 +1299,7 @@ function weekPrompt(){const k=APP.weekKey||weekKey(now());const w=APP.W[k]||{ans
   const prompt=`你是一位严格但友善的交易纪律教练。只评价过程和规则遵守，不预测行情，不给买卖或方向建议。不要提历史最高权益、离回本还差多少、“本来能赚多少”。主动承认违规和忍住冲动要表扬。不说赚了多少 u、能还多少钱，结果只用 R。不鼓励任何入金。
 背景：${PROFILE_SUMMARY}
 规则：${RULES_TEXT}
-本周（${k}）数据：${JSON.stringify({trades:list.map(tradeBrief),metrics:{n:m.n,allHardLinesKept:m.allPass,gateRate:m.gateRate,sumR:m.sumR,avgR:m.avgR,urgesResisted:m.urges,riskU:APP.P.riskU||1,cleanStreak:APP.P.cleanCount||0},hardLines:list.map(t=>({no:t.no,broken:tradeHL(t)})),violations:APP.P.violations.filter(v=>weekKey(v.t)===k).map(v=>v.rule),moods:Object.keys(APP.D).filter(x=>weekKey(Date.parse(x+'T12:00:00+08:00'))===k).map(x=>({day:x,entries:(APP.D[x].entries||[]).map(e=>({mood:e.mood,q:e.q,fantasies:fantTypes(e).map(f=>feelL(FANT,f)),afterFantasy:(e.fantAct||[]).map(f=>feelL(FANTACT,f)),text:e.text})),plan:APP.D[x].plan?APP.D[x].plan.items.map((it,i)=>({task:it.text,type:feelL(PCAT,it.cat),result:APP.D[x].review&&APP.D[x].review.items[i]?feelL(PSTAT,APP.D[x].review.items[i].status):null,whyNot:APP.D[x].review&&APP.D[x].review.items[i]?(APP.D[x].review.items[i].why||[]).map(w=>feelL(PWHY,w)):[]})):null,phone:APP.D[x].review&&APP.D[x].review.phone?feelL(PTIME,APP.D[x].review.phone):null,chartWatching:APP.D[x].review&&APP.D[x].review.chart?feelL(PTIME,APP.D[x].review.chart):null,smallWin:APP.D[x].review?APP.D[x].review.win:null})),answers:w.answers})}
+本周（${k}）数据：${JSON.stringify({trades:list.map(tradeBrief),metrics:{n:m.n,allHardLinesKept:m.allPass,gateRate:m.gateRate,sumR:m.sumR,avgR:m.avgR,urgesResisted:m.urges,riskU:APP.P.riskU||1,cleanStreak:APP.P.cleanCount||0},hardLines:list.map(t=>({no:t.no,broken:tradeHL(t)})),violations:APP.P.violations.filter(v=>weekKey(v.t)===k).map(v=>v.rule),moods:Object.keys(APP.D).filter(x=>weekKey(Date.parse(x+'T12:00:00+08:00'))===k).map(x=>({day:x,entries:(APP.D[x].entries||[]).map(e=>({mood:e.mood,q:e.q,fantasies:fantTypes(e).map(f=>feelL(FANT,f)),afterFantasy:(e.fantAct||[]).map(f=>feelL(FANTACT,f)),text:e.text})),plan:APP.D[x].plan?APP.D[x].plan.items.map((it,i)=>({task:it.text,type:feelL(PCAT,it.cat),result:APP.D[x].review&&APP.D[x].review.items[i]?feelL(PSTAT,APP.D[x].review.items[i].status):null,whyNot:APP.D[x].review&&APP.D[x].review.items[i]?(APP.D[x].review.items[i].why||[]).map(w=>feelL(PWHY,w)):[]})):null,phone:APP.D[x].review&&APP.D[x].review.phone?feelL(PTIME,APP.D[x].review.phone):null,chartWatching:APP.D[x].review&&APP.D[x].review.chart?feelL(PTIME,APP.D[x].review.chart):null,smallWin:APP.D[x].review?APP.D[x].review.win:null,routine:APP.D[x].routine?{floor:dayFloor(x),items:RT.map(r=>({item:r[1],state:rtState(x,r[0])})),note:APP.D[x].routine.note||null,lookBack:APP.D[x].routine.look||null,rest:!!APP.D[x].routine.rest}:null,replays:replaysOf(x).map(r=>({tf:feelL(REP_TF,r.tf),pattern:feelL(REP_PAT,r.pat),side:r.side,rr:r.rr,result:feelL(REP_RES,r.result),R:repR(r),hiddenFirst:r.pre!==false}))})),answers:w.answers})}
 用简体中文，按下面格式，不超过 260 字：
 本周守住硬线的情况：（用数字，点名破了第几条）
 最大的进步：
@@ -1363,7 +1400,7 @@ function mdTrade(t){const L=[];const g=t.review&&t.review.grade?GRADE[t.review.g
   return L.join('\n')}
 function mdAll(){const m=metrics(realTrades());const L=[`# 交易日志（导出于 ${bj(now()).day} ${bj(now()).str.slice(6)} 北京时间）`,'',`练习：每笔最多亏 ${APP.P.riskU||1} u；连续守住 ${APP.P.cleanCount||0} 笔；已平仓 ${m.n} 笔；合计 ${rS(m.sumR)}；守住全部 6 条硬线 ${pctS(m.allPass)}`,''];
   sortedTrades().forEach(t=>{L.push(mdTrade(t));L.push('')});
-  const ds=Object.keys(APP.D).sort();if(ds.length){L.push('# 每天的计划、总结和心情');ds.forEach(k=>{const d=APP.D[k];if(d.plan)L.push(`- ${k} 计划：`+d.plan.items.map((x,i)=>`${i+1}. ${x.text}（${feelL(PCAT,x.cat)}${d.review&&d.review.items[i]&&d.review.items[i].status?'，'+feelL(PSTAT,d.review.items[i].status)+((d.review.items[i].why||[]).length?'：'+d.review.items[i].why.map(w=>feelL(PWHY,w)).join('、'):''):''}）`).join('；'));if(d.review){if(d.review.win)L.push(`  做成的小事：${d.review.win}`);if(d.review.first)L.push(`  明天第一件事：${d.review.first}`);if(d.review.phone||d.review.chart)L.push(`  刷手机 ${d.review.phone?feelL(PTIME,d.review.phone):'—'}，盯盘 ${d.review.chart?feelL(PTIME,d.review.chart):'—'}`)}(d.entries||[]).forEach(e=>L.push(`- ${k} ${bj(e.t).str.slice(6)}：${moodText(e)}`))});L.push('')}
+  const ds=Object.keys(APP.D).sort();if(ds.length){L.push('# 每天的计划、总结和心情');ds.forEach(k=>{const d=APP.D[k];if(d.plan)L.push(`- ${k} 计划：`+d.plan.items.map((x,i)=>`${i+1}. ${x.text}（${feelL(PCAT,x.cat)}${d.review&&d.review.items[i]&&d.review.items[i].status?'，'+feelL(PSTAT,d.review.items[i].status)+((d.review.items[i].why||[]).length?'：'+d.review.items[i].why.map(w=>feelL(PWHY,w)).join('、'):''):''}）`).join('；'));if(d.review){if(d.review.win)L.push(`  做成的小事：${d.review.win}`);if(d.review.first)L.push(`  明天第一件事：${d.review.first}`);if(d.review.phone||d.review.chart)L.push(`  刷手机 ${d.review.phone?feelL(PTIME,d.review.phone):'—'}，盯盘 ${d.review.chart?feelL(PTIME,d.review.chart):'—'}`)}if(d.routine){const c=dayCounts(k);L.push(`- ${k} 每天怎么过：${dayFloor(k)?'守住底线':'没守住底线'}（标准 ${c.std}、最低 ${c.min}、没做 ${c.no}${d.routine.rest?'，休息日':''}）${d.routine.note?'；'+d.routine.note:''}${d.routine.look?'；回头看：'+d.routine.look:''}`)}if((d.replays||[]).length){const st=repStats(d.replays);L.push(`- ${k} 回放 ${st.n} 个：赚 ${st.win}、亏 ${st.loss}、平 ${st.flat}、不做 ${st.skip}，合计 ${rS(st.sum)}`)}(d.entries||[]).forEach(e=>L.push(`- ${k} ${bj(e.t).str.slice(6)}：${moodText(e)}`))});L.push('')}
   const ws=Object.keys(APP.W).sort();if(ws.length){L.push('# 周复盘');ws.forEach(k=>{const w=APP.W[k];L.push(`## ${k}`);WQ.forEach(q=>{if(w.answers&&w.answers[q[0]])L.push(`- ${q[1]}\n  ${w.answers[q[0]]}`)});if(w.ai)L.push(`- AI 总结：${w.ai.replace(/\n+/g,' / ')}`);L.push('')})}
   return L.join('\n')}
 const EXPORT_README=()=>`# 交易日志导出包
@@ -1562,23 +1599,21 @@ const A={
     addViolation('self',null,true,{hl:f.hl,note});saveP();APP.selfForm=null;toast(f.hl===6?'记下了。这轮练习结束，停 30 天。主动承认比隐瞒好得多':'记下了。按规则停 7 天；主动承认比隐瞒好得多');render()},
   stepUp:()=>{if(!canStepUp())return;const P=APP.P;P.riskU=(P.riskU||1)+1;P.cleanCount=0;(P.stepUps=P.stepUps||[]).push({t:now(),riskU:P.riskU});saveP();toast(`已改成每笔最多亏 ${P.riskU} u`);render()},
   planDay:b=>{APP.planDay=b.dataset.v===todayKey()?null:b.dataset.v;APP.planF=null;APP.revF=null;APP.planEdit=null;APP.revEdit=null;render()},
-  planCat:b=>{const f=APP.planF;if(!f)return;const it=f.items[+b.dataset.i];it.cat=it.cat===b.dataset.v?null:b.dataset.v;render()},
-  planFb:b=>{const f=APP.planF;if(!f)return;const i=f.fallback.indexOf(b.dataset.v);if(i>=0)f.fallback.splice(i,1);else f.fallback.push(b.dataset.v);render()},
-  planSave:()=>{const f=APP.planF;if(!f)return;const items=f.items.filter(x=>String(x.text||'').trim()).map(x=>({text:String(x.text).trim(),cat:x.cat||'other'}));if(!items.length){toast('至少写一件事');return}
-    const d=dayDoc(f.k);const was=d.plan;d.plan={items,fallback:f.fallback.slice(),t:was?was.t:now()};if(was)d.plan.editedAt=now();
-    if(d.review&&d.review.items.length!==items.length){const ri=d.review.items;d.review.items=items.map((_,i)=>ri[i]||{status:null,why:[]})}
-    saveD(f.k);APP.planF=null;APP.planEdit=null;toast(was?'计划改好了':'定下了。晚上回来总结');render();window.scrollTo(0,0)},
-  planEditOpen:()=>{APP.planEdit=planKey();APP.planF=null;render()},
-  planEditCancel:()=>{APP.planEdit=null;APP.planF=null;render()},
-  revStat:b=>{const f=APP.revF;if(!f)return;const it=f.items[+b.dataset.i];it.status=it.status===b.dataset.v?null:b.dataset.v;if(it.status==='done')it.why=[];render()},
-  revWhy:b=>{const f=APP.revF;if(!f)return;const a=f.items[+b.dataset.i].why;const i=a.indexOf(b.dataset.v);if(i>=0)a.splice(i,1);else a.push(b.dataset.v);render()},
-  revTime:b=>{const f=APP.revF;if(!f)return;f[b.dataset.k]=f[b.dataset.k]===b.dataset.v?null:b.dataset.v;render()},
-  revSave:()=>{const f=APP.revF;if(!f)return;if(f.items.some(x=>!x.status)){toast('每件事点一下：做完了、做了一部分、还是没做');return}
-    const d=dayDoc(f.k);const was=d.review;d.review={items:f.items.map(x=>({status:x.status,why:x.why.slice()})),phone:f.phone,chart:f.chart,win:String(f.win||'').trim(),first:String(f.first||'').trim(),t:was?was.t:now()};if(was)d.review.editedAt=now();
-    saveD(f.k);APP.revF=null;APP.revEdit=null;const dn=f.items.filter(x=>x.status==='done').length;
-    toast(dn===f.items.length?'都做完了。明天接着来':dn?`做完 ${dn} 件。做了就算数`:'今天一件都没做完也没关系，明天先做第一件');render();window.scrollTo(0,0)},
-  revEditOpen:()=>{APP.revEdit=planKey();APP.revF=null;render()},
-  revEditCancel:()=>{APP.revEdit=null;APP.revF=null;render()},
+  rtSet:b=>{const k=planKey();const d=dayDoc(k);d.routine=d.routine||{items:{}};d.routine.items=d.routine.items||{};const id=b.dataset.id,v=b.dataset.v;d.routine.items[id]=d.routine.items[id]===v?null:v;d.routine.t=d.routine.t||now();saveD(k);render()},
+  rtRest:()=>{const k=planKey();const d=dayDoc(k);d.routine=d.routine||{items:{}};d.routine.rest=!d.routine.rest;saveD(k);render()},
+  rtTime:b=>{const k=planKey();const d=dayDoc(k);d.routine=d.routine||{items:{}};d.routine[b.dataset.k]=d.routine[b.dataset.k]===b.dataset.v?null:b.dataset.v;saveD(k);render()},
+  rtSaveNote:()=>{const k=planKey();const d=dayDoc(k);d.routine=d.routine||{items:{}};const dr=APP.rtF||{};['note','look'].forEach(x=>{if(dr[x]!=null)d.routine[x]=String(dr[x]).trim()});APP.rtF=null;saveD(k);toast('记下了');render()},
+  repJump:()=>{const el=document.getElementById('repcard');if(el)el.scrollIntoView({block:'start'})},
+  repPick:b=>{const f=repDraft();const k=b.dataset.k,v=b.dataset.v;f[k]=(k==='side')?v:(f[k]===v?null:v);if(k==='side')setTimeout(repRREl,0);render()},
+  repPre:b=>{repDraft().pre=b.dataset.v==='1';render()},
+  repSave:()=>{const f=repDraft();if(!f.pat){toast('先点是哪种形态');return}if(!f.result){toast('先点往后放的结果');return}
+    const rr=repRR(f);if(f.result!=='skip'){if(rr==null){toast('填好入场、止损、目标');return}if(rr==='bad'){toast('止损或目标方向反了');return}}
+    const k=planKey();const d=dayDoc(k);d.replays=d.replays||[];const x={t:now(),sym:f.sym,tf:f.tf,pat:f.pat,side:f.side,entry:num(f.entry),stop:num(f.stop),target:num(f.target),rr:typeof rr==='number'?+rr.toFixed(2):null,result:f.result,pre:f.pre!==false,note:String(f.note||'').trim()};
+    if(f.result==='flat')x.R=num(f.R)??0;d.replays.push(x);saveD(k);
+    APP.repF=Object.assign(repDraft(),{entry:'',stop:'',target:'',result:null,R:'',note:'',pre:true});const nn=d.replays.length;
+    toast(nn>=10?`第 ${nn} 个。今天的 10 个做完了`:nn===2?'第 2 个，最低版本做到了':`第 ${nn} 个，下一个`);render();setTimeout(()=>{const el=document.getElementById('repcard');if(el)el.scrollIntoView({block:'start'})},30)},
+  repDel:b=>{APP.repDelT=+b.dataset.t;render()},
+  repDelYes:b=>{const k=planKey();const d=APP.D[k];if(d&&d.replays){d.replays=d.replays.filter(x=>x.t!==+b.dataset.t);saveD(k)}APP.repDelT=null;render()},
   moodEdit:b=>{const k=b.dataset.k,t=+b.dataset.t;const e=APP.D[k]&&(APP.D[k].entries||[]).find(x=>x.t===t);if(!e)return;
     APP.moodF={mood:e.mood||null,emo:(e.emo||[]).slice(),q:Object.assign({},e.q||{}),fant:(e.fant||[]).slice(),fantAct:(e.fantAct||[]).slice(),shots:[],keep:(e.shots||[]).slice(),text:e.text||'',editKey:{k,t}};APP.moodMsg=null;render();window.scrollTo(0,0)},
   moodEditCancel:()=>{APP.moodF=null;render()},
@@ -1603,8 +1638,8 @@ document.addEventListener('input',e=>{const el=e.target;
   if(el.dataset.ev&&APP.ev){APP.ev[el.dataset.ev]=el.value}
   if(el.dataset.feel&&el.dataset.id){feelDraft(el.dataset.id)[el.dataset.feel]=el.value}
   if(el.dataset.mood){moodDraft()[el.dataset.mood]=el.value}
-  if(el.dataset.plan&&APP.planF){APP.planF.items[+el.dataset.i][el.dataset.plan]=el.value}
-  if(el.dataset.rev&&APP.revF){APP.revF[el.dataset.rev]=el.value}
+  if(el.dataset.rep){repDraft()[el.dataset.rep]=el.value;if(['entry','stop','target'].includes(el.dataset.rep))repRREl()}
+  if(el.dataset.rt){APP.rtF=APP.rtF||{};APP.rtF[el.dataset.rt]=el.value}
   if(el.dataset.paste){APP.paste[el.dataset.paste]=el.value}
   if(el.dataset.cfg){APP.cfgDraft=APP.cfgDraft||{};APP.cfgDraft[el.dataset.cfg]=el.value}
   if(el.dataset.dep&&APP.depForm){APP.depForm[el.dataset.dep]=el.value}
